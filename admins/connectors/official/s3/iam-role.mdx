@@ -1,0 +1,116 @@
+---
+title: "S3: роль IAM"
+description: "Авторизация коннектора S3 с помощью роли AWS IAM с политикой assume role."
+---
+
+### Когда использовать этот метод {#when-to-use-this-method}
+
+- Когда нужно разделить права, предоставив конкретный доступ к S3 без изменения основной роли вашего
+  инстанса EC2
+- Когда нужны временные, часто меняемые учётные данные для доступа к S3 без управления
+  долгоживущими ключами доступа
+- При работе в мультиаккаунтных средах AWS, чтобы обеспечить межаккаунтный доступ к S3 через
+  принятие роли
+
+### Настройка роли IAM {#setting-up-the-iam-role}
+
+<Steps>
+  <Step title="Создайте роль доступа к S3">
+    - В консоли AWS откройте **IAM › Roles** и нажмите **Create role**
+    - Для **Trusted entity type** выберите **Custom trust policy**
+    - В JSON-редакторе Custom trust policy настройте, кто может принимать эту роль.
+    Можно выбрать:
+    - **IAM Role**: `"AWS": "arn:aws:iam::YOUR_AWS_ACCOUNT_ID:role/YourExistingEC2Role"`
+    - **AWS Service**: `"Service": "ec2.amazonaws.com"` (для инстансов EC2)
+
+    Пример для роли EC2 (замените `YOUR_AWS_ACCOUNT_ID` и `YourExistingEC2Role`):
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Principal": {
+           "AWS": "arn:aws:iam::YOUR_AWS_ACCOUNT_ID:role/YourExistingEC2Role"
+         },
+         "Action": "sts:AssumeRole"
+       }
+     ]
+   }
+   ```
+
+    - Нажмите **Next**
+    - Прикрепите политику **AmazonS3ReadOnlyAccess** или создайте пользовательскую политику для конкретных корзин:
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Action": [
+           "s3:GetObject",
+           "s3:ListBucket"
+         ],
+         "Resource": [
+           "arn:aws:s3:::your-source-bucket-name",
+           "arn:aws:s3:::your-source-bucket-name/*"
+         ]
+       }
+     ]
+   }
+   ```
+
+    - Назовите роль (например, `OnyxS3AccessRole`) и нажмите **Create role**
+    - Скопируйте **Role ARN** со страницы сводки роли (например, `arn:aws:iam::YOUR_AWS_ACCOUNT_ID:role/YOUR_CREATED_ROLE_NAME`)
+
+    <img className="rounded-image" src="/assets/admins/connectors/blob/s3/role-arn.png" alt="Схема страницы, где можно скопировать Role ARN"/>
+  </Step>
+
+  <Step title="Предоставьте роли инстанса EC2 право AssumeRole">
+    - Вернитесь в **IAM > Roles** и найдите существующую роль вашего инстанса EC2
+    - Нажмите на роль и откройте вкладку **Permissions**
+    - Нажмите **Add permissions > Create inline policy**
+    - Переключитесь на JSON и добавьте эту политику (замените на ваш реальный ID аккаунта и имя роли):
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Action": "sts:AssumeRole",
+         "Resource": "arn:aws:iam::YOUR_AWS_ACCOUNT_ID:role/YOUR_CREATED_ROLE_NAME"
+       }
+     ]
+   }
+   ```
+
+    - Назовите политику (например, `AllowAssumeOnyxS3Role`) и нажмите **Create policy**
+
+    <img className="rounded-image" src="/assets/admins/connectors/blob/s3/iam-role.png" alt="Схема назначения роли IAM"/>
+
+    Теперь ваш инстанс EC2 использует свой существующий профиль инстанса,
+    чтобы получать временные учётные данные для роли `OnyxS3AccessRole`,
+    которая затем может безопасно работать с указанными корзинами S3.
+  </Step>
+</Steps>
+
+### Ввод учётных данных в Yahont {#credential-entry-in-onyx}
+
+При настройке коннектора S3 в Yahont нужно:
+
+<Steps>
+  <Step title="Откройте вкладку IAM Role">
+    Нажмите на вкладку **IAM Role**
+  </Step>
+
+  <Step title="Введите Role ARN">
+    Введите **Role ARN**, скопированный ранее (например, `arn:aws:iam::YOUR_AWS_ACCOUNT_ID:role/YOUR_CREATED_ROLE_NAME`)
+  </Step>
+</Steps>
+
+<img className="rounded-image" src="/assets/admins/connectors/blob/s3/onyx-iam-role.png" alt="Снимок экрана настройки роли IAM для S3 в Yahont с вкладками"/>
+
+Получив Role ARN роли IAM, перейдите к [шагам индексации в обзоре](./overview#indexing), чтобы настроить коннектор S3.

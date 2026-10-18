@@ -1,0 +1,184 @@
+---
+title: "Первое знакомство"
+description: "Краткий обзор основного интерфейса Yahont"
+icon: "rocket"
+---
+
+import AgentsPersonasAssistantsNote from '/snippets/agents-personas-assistants-note.mdx';
+
+## Обзор {#overview}
+
+Работа с Yahont начинается в едином интерфейсе. Отсюда можно искать по документам, генерировать код,
+поручать агентам работу и многое другое.
+
+С Yahont можно общаться как с коллегой. Или искать так, как вы привыкли в Google.
+
+<img className="rounded-image" src="/assets/overview/core_features/onyx_ui_starting_page.png" alt="Обзор единого интерфейса Yahont"/>
+
+<img className="rounded-image" src="/assets/overview/core_features/start_chat.png" alt="Чат в едином интерфейсе Yahont"/>
+
+## Чат, поиск и авто {#chat-vs-search-vs-auto}
+
+Иногда нужно пообщаться с ИИ-помощником, чтобы получить краткую сводку,
+отредактировать текст или получить помощь с задачей. В другой раз нужно просто найти документ,
+который точно есть в системе.
+
+<Tip>
+  Yahont автоматически определяет ваше намерение по первому отправленному сообщению.
+</Tip>
+
+После отправки сообщения единый интерфейс превратится в интерфейс чата или поиска.
+
+Не волнуйтесь! Между поиском и чатом можно переключаться в любой момент.
+Также можно использовать раскрывающийся список в левом верхнем углу, чтобы переключаться между режимами «Авто»,
+«Поиск» и «Чат».
+
+**Узнайте больше, нажав на карточки ниже:**
+
+<Columns cols={2}>
+  <Card title="Чат" icon="comment" href="/overview/core_features/chat">
+    Интерактивный диалоговый ИИ, который понимает контекст и даёт подробные ответы со ссылками на источники.
+  </Card>
+
+  <Card title="Поиск" icon="magnifying-glass" href="/overview/core_features/internal_search">
+    Традиционный поиск с расширенной фильтрацией, ранжированием и обнаружением документов.
+  </Card>
+</Columns>
+
+<br />
+
+<Frame caption="Интерфейс чата">
+
+  <img className="rounded-image" src="/assets/overview/core_features/chat_ui.png" alt="Чат и поиск в едином интерфейсе Yahont"/>
+</Frame>
+
+<br />
+
+<Frame caption="Интерфейс поиска">
+
+  <img className="rounded-image" src="/assets/overview/core_features/search_ui.png" alt="Чат и поиск в едином интерфейсе Yahont"/>
+</Frame>
+
+## Боковая панель {#side-panel}
+
+<img className="rounded-image" src="/assets/overview/core_features/side_panel_rectangle.png" alt="Боковая панель единого интерфейса Yahont"/>
+
+На боковой панели собраны ключевые функции Yahont.
+
+<AccordionGroup>
+    <Accordion title="Новый чат" icon="pen-to-square">
+      Начните с чистого листа в новой сессии Yahont. Это удобно,
+      когда вы переключаетесь между задачами или ищете что-то новое. Предыдущая сессия сохранится в списке «Недавние».
+    </Accordion>
+
+    <Accordion title="Агенты" icon="lightbulb">
+      Агенты — это ИИ-помощники с собственными целями и разными возможностями.
+      <Card title="Администраторам: создайте своего агента" icon="lightbulb" href="/admins/agents/overview" horizontal/>
+
+      <Card title="Пользователям: попробуйте агента Yahont с поиском " icon="lightbulb" href="/overview/core_features/agents" horizontal/>
+    </Accordion>
+
+    <Accordion title="Проекты" icon="folder">
+      Собирайте связанные чаты и файлы в проекты. Чтобы создать проект, нажмите **Новый проект**. Подробнее:
+      [Проекты](/overview/core_features/chat#projects).
+    </Accordion>
+
+    <Accordion title="Недавние" icon="clock">
+      Здесь находятся последние чаты. Чтобы найти старый чат, нажмите **Поиск чатов**.
+    </Accordion>
+
+    <Accordion title="Панель администратора" icon="gear">
+      Эта кнопка доступна только администраторам.
+    </Accordion>
+
+    <Accordion title="Настройки пользователя" icon="circle-user">
+      Нажмите значок профиля в левом нижнем углу боковой панели, чтобы открыть пользовательские настройки.
+    </Accordion>
+</AccordionGroup>
+
+## Как пользоваться интерфейсом чата {#how-to-use-the-chat-interface}
+
+<img className="rounded-image" src="/assets/overview/core_features/chat_ui.png" alt="Интерфейс чата Yahont"/>
+
+Интерфейс чата — это диалог с вашими ИИ-агентами. Вы увидите его, если отправите Yahont сообщение на естественном языке!
+
+<Tip>
+  Показать интерфейс чата принудительно можно переключателем «Авто / Поиск / Чат» в левом верхнем углу.
+</Tip>
+
+<Steps>
+  <Step title="Введите сообщение в поле ввода" icon="pen-to-square">
+    Можно, например, спросить Yahont: «К каким данным у тебя есть доступ?»
+
+    Параметры поля ввода позволяют точно настроить, как отвечает Yahont. Не волнуйтесь,
+    подробнее мы расскажем об этом [ниже](#configure-your-chat-session).
+
+    <img className="rounded-image" src="/assets/overview/core_features/start_chat.png" alt="Интерфейс чата Yahont"/>
+  </Step>
+
+  <Step title="Yahont начнёт обрабатывать запрос" icon="gears">
+    Вы увидите, как Yahont планирует, рассуждает или вызывает любые действия, доступные используемому ИИ-агенту.
+    Если вопрос простой, Yahont может ответить мгновенно!
+
+    <img className="rounded-image" src="/assets/overview/core_features/chat_first_message.png" alt="Интерфейс чата Yahont"/>
+  </Step>
+
+  <Step title="ИИ отвечает в формате диалога" icon="pen-to-square">
+    Стандартный ИИ-агент Yahont оснащён поиском. Это значит,
+    что он может обращаться к источникам данных вашей организации, чтобы ответить на вопрос.
+
+    Если вызвано действие «Поиск», справа отобразится список результатов. Кроме того, ИИ укажет в ответе источники,
+    которые использовал.
+
+    <img className="rounded-image" src="/assets/overview/core_features/chat_response.png" alt="Интерфейс чата Yahont"/>
+  </Step>
+
+  <Step title="Продолжите диалог или задайте новый вопрос!" icon="pen-to-square">
+    Отправьте уточняющий вопрос,
+    поручите агенту что-то сделать с вашими документами или спросите о чём-то совершенно новом.
+
+    <img className="rounded-image" src="/assets/overview/core_features/follow_up.png" alt="Интерфейс чата Yahont"/>
+  </Step>
+
+  <Step title="После отправки сообщения" icon="pen-to-square">
+    Диалог сохранится в списке «Недавние» на боковой панели.
+
+    <img className="rounded-image" src="/assets/overview/core_features/side_panel_rectangle.png" alt="Боковая панель единого интерфейса Yahont"/>
+  </Step>
+</Steps>
+
+## Настройка сессии чата {#configure-your-chat-session}
+
+<img className="rounded-image" src="/assets/overview/core_features/chat_options.png" alt="Поле ввода чата Yahont"/>
+
+### Выбор агента {#selecting-an-agent}
+
+На боковой панели в разделе **Агенты** находятся закреплённые агенты, доступные в вашем инстансе Yahont.
+
+<AgentsPersonasAssistantsNote />
+
+Кнопка **Ещё агенты** показывает всех агентов вашей организации, которые опубликованы или доступны вам.
+
+### Выбор модели {#choose-your-model}
+
+У каждого агента есть языковая модель по умолчанию.
+В любой момент вы можете сменить модель для своей сессии в списке выбора модели в чате.
+
+<Tip>
+  Не нашли нужную модель? Попросите администратора добавить её в ваш инстанс Yahont!
+</Tip>
+
+### Глубокое исследование {#deep-research}
+
+Кнопка **Глубокое исследование** со значком песочных часов в поле ввода предназначена для сложных вопросов.
+Такой ответ готовится дольше и стоит дороже обычного. Подробнее:
+[Глубокое исследование](/overview/core_features/chat#deep-research).
+
+### Прикрепление файлов {#attach-files}
+
+Кнопка со скрепкой **Прикрепить файлы** в поле ввода позволяет загрузить файл в сессию чата или выбрать файл из
+недавних.
+
+## Выполнение кода {#code-execution}
+
+Подробнее о выполнении кода в чате: [Выполнение кода](/overview/core_features/code_interpreter).

@@ -1,0 +1,146 @@
+---
+title: "Slack Federated"
+description: "Настройка коннектора Slack Federated"
+---
+
+## Обновление за январь 2026 {#jan-2026-update}
+
+В июне 2025 года Slack ввёл изменения в условиях использования и API,
+которые запретили клиентам индексировать собственные данные. Yahont представил коннектор Slack Federated,
+использующий API поиска как альтернативу индексирующему коннектору. Однако недавно Slack отменил эти ограничения API,
+и индексирующий коннектор снова может работать.
+
+Мы выяснили, что индексирующий коннектор находит релевантные результаты значительно лучше, чем API поиска Slack.
+Мы настоятельно рекомендуем по возможности использовать [индексирующий коннектор
+Slack](/admins/connectors/official/slack/slack_indexed).
+
+## Настройка {#setting-up}
+
+### Авторизация {#authorization}
+
+<Steps>
+  <Step title="Предварительное условие">
+    Чтобы настроить коннектор, нужно быть администратором рабочего пространства Slack.
+  </Step>
+
+  <Step title="Откройте приложения Slack">
+    Откройте и войдите на [https://api.slack.com/apps](https://api.slack.com/apps).
+  </Step>
+
+  <Step title="Создайте новое приложение">
+    Нажмите кнопку **Create New App** в правом верхнем углу. Выберите вариант **From an app manifest**.
+    Выберите нужное рабочее пространство в раскрывающемся списке и нажмите **Next**.
+
+    <img className="rounded-image" src="/assets/admins/connectors/slack/SlackApp.png" alt="Создание приложения Slack с выбранным вариантом манифеста"/>
+  </Step>
+
+  <Step title="Вставьте манифест">
+    Выберите вкладку «YAML», вставьте в текстовое поле следующий манифест и нажмите **Next**:
+  </Step>
+</Steps>
+
+```
+display_information:
+  name: Onyx Search Assistant
+  description: Search your Slack data as yourself
+  background_color: "#4A154B"
+
+oauth_config:
+  redirect_urls:
+    - https://<YOUR_YAHONT_DOMAIN>/federated/oauth/callback
+  scopes:
+    user:
+      - channels:read
+      - groups:read
+      - im:read
+      - mpim:read
+      - search:read
+      - channels:history
+      - groups:history
+      - im:history
+      - mpim:history
+      - users:read
+
+settings:
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false
+```
+
+<Info>
+  Для Yahont Cloud значение `redirect_urls` должно быть `https://cloud.yahont.ai/federated/oauth/callback`.
+</Info>
+
+<Warning>
+  Ротация токенов пока не поддерживается, поэтому `token_rotation_enabled: false` обязательно.
+</Warning>
+
+<Steps>
+  <Step title="Создайте приложение">
+    Нажмите кнопку **Create**.
+  </Step>
+
+  <Step title="Откройте Basic Information">
+    На странице приложения откройте вкладку **Basic Information** в заголовке **Settings**.
+  </Step>
+
+  <Step title="Скопируйте учётные данные клиента">
+    Скопируйте **Client ID** и **Client Secret**. Сохраните их в надёжном месте для следующего шага.
+  </Step>
+</Steps>
+
+<img className="rounded-image" src="/assets/admins/connectors/slack/FederatedSlackCredentials.png" alt="Страница Basic Information в Slack с Client ID и Client Secret"/>
+
+### Индексирование {#indexing}
+
+<Steps>
+  <Step title="Откройте коннектор Slack">
+    Откройте панель коннекторов и выберите коннектор **Slack**.
+  </Step>
+
+  <Step title="Введите учётные данные клиента">
+    Введите **Client ID** и **Client Secret** с шага 7.
+  </Step>
+
+  <Step title="Настройте область поиска">
+    Настройте область поиска для федеративного коннектора. Доступны следующие параметры:
+
+    **Выбор каналов:**
+    - **Search All Channels**: включите, чтобы искать по всем доступным каналам. Когда включено,
+    поле Channels отключается.
+    - **Channels**: укажите, по каким каналам искать (используется, только если Search All Channels отключён). Поддерживаются шаблоны glob (например, `general`, `eng*`, `product-*`).
+    - **Exclude Channels**: исключите отдельные каналы из поиска. Поддерживаются шаблоны glob (например, `secure-channel`, `private-*`, `customer*`).
+
+    **Типы сообщений:**
+    - **Include Direct Messages**: включать в результаты поиска личные сообщения пользователей (1:1).
+    - **Include Group Direct Messages**: включать в результаты поиска групповые личные сообщения (MPIM).
+    - **Include Private Channels**: включать в результаты поиска приватные каналы (у пользователя должен быть доступ).
+
+    **Параметры поиска:**
+    - **Default Search Days**: максимальное число дней, на которое искать назад (по умолчанию: 30).
+    Увеличение значения может ухудшить качество ответов.
+    - **Max Messages Per Query**: максимальное число сообщений, получаемых за один поисковый запрос (по умолчанию: 25).
+    Большие значения дают больше контекста, но могут быть медленнее.
+
+    После настройки нажмите кнопку **Create/Update**.
+
+    <img className="rounded-image" src="/assets/admins/connectors/slack/SlackFederatedConnectorSetting.png" alt="Настройки коннектора Slack Federated в Yahont с учётными данными клиента"/>
+  </Step>
+
+  <Step title="Завершите OAuth">
+    Вернитесь на главную страницу чата и пройдите процесс OAuth!
+  </Step>
+</Steps>
+
+<Info>
+  Каждому пользователю нужно пройти этот процесс OAuth. Содержимое, доступное для поиска, зависит от:
+  - Параметров конфигурации коннектора (каналы, личные сообщения, приватные каналы и т. д.)
+  - Областей OAuth, предоставленных при настройке
+  - Индивидуальных прав доступа пользователя в Slack
+
+  Если некоторые области OAuth отсутствуют (например, `mpim:read`, `im:history`),
+  коннектор спокойно продолжит поиск по другим доступным типам каналов и запишет в журнал предупреждения об
+  отсутствующих областях.
+</Info>
+
+<img className="rounded-image" src="/assets/admins/connectors/slack/FederatedSlackOauth.png" alt="Экран согласия OAuth Slack для приложения поиска"/>

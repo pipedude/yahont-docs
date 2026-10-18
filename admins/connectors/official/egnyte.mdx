@@ -1,0 +1,65 @@
+---
+title: "Egnyte"
+description: "Доступ к файлам, хранящимся в Egnyte"
+---
+
+## Как это работает {#how-it-works}
+
+Коннектор Egnyte получает файлы, хранящиеся в Egnyte. Коннектор Egnyte индексирует имя файла,
+тип файла и содержимое файла.
+
+Новые файлы загружаются каждые **10** минут.
+
+## Настройка {#setup}
+
+### Настройте приложение Egnyte и переменные окружения Yahont {#configure-your-egnyte-application-onyx-env-variables}
+
+<Info>
+  Это нужно только при самостоятельном размещении Yahont. Если вы используете [Yahont Cloud](https://cloud.yahont.ai),
+  этот шаг можно пропустить.
+</Info>
+
+<Steps>
+  <Step title="Создайте приложение Egnyte">
+    Создайте приложение Egnyte.
+    Подробнее смотрите в [документации API Egnyte](https://developers.egnyte.com/docs/read/introduction).
+  </Step>
+
+  <Step title="Задайте переменные окружения">
+    Задайте следующие переменные окружения в вашем инстансе Yahont:
+
+    ```bash
+    EGNYTE_DOMAIN=something like "app4onyx"
+    EGNYTE_CLIENT_ID=
+    EGNYTE_CLIENT_SECRET=
+    ```
+  </Step>
+
+  <Step title="Перезапустите Yahont">
+    Перезапустите ваш инстанс Yahont как обычно, чтобы применить изменения.
+  </Step>
+</Steps>
+
+### Индексирование {#indexing}
+
+<Steps>
+  <Step title="Откройте коннектор Egnyte">
+    В интерфейсе Yahont откройте панель администратора и выберите коннектор **Egnyte**
+  </Step>
+
+  <Step title="Авторизуйтесь через OAuth">
+    Нажмите кнопку `Создать`, чтобы пройти процесс OAuth.
+  </Step>
+
+  <Step title="Вернитесь в Yahont">
+    После авторизации приложения вы будете перенаправлены обратно в Yahont.
+  </Step>
+
+  <Step title="Завершите настройку">
+    Завершите настройку, при желании указав путь к папке для индексации.
+  </Step>
+
+  <Step title="Запустите индексацию">
+    Нажмите `Подключить`, чтобы начать индексацию файлов Egnyte!
+  </Step>
+</Steps>

@@ -1,0 +1,101 @@
+---
+title: "Oracle Cloud Storage"
+description: "Доступ к файлам из корзин Oracle Cloud Storage"
+---
+
+## Как это работает {#how-it-works}
+
+Коннектор Oracle Cloud Infrastructure (OCI) Storage получает все документы из указанной корзины OCI.
+Он поддерживает различные форматы файлов, включая PDF, DOC, DOCX, TXT и другие.
+
+Документы обновляются раз в **1** день.
+
+## Настройка {#setting-up}
+
+### Авторизация {#authorization}
+
+<Steps>
+  <Step title="Откройте консоль Oracle Cloud">
+    Войдите в консоль Oracle Cloud.
+  </Step>
+
+  <Step title="Откройте User Settings">
+    Нажмите значок пользователя в правом верхнем углу и выберите «User Settings».
+
+    <img className="rounded-image" src="/assets/admins/connectors/blob/oci/topbar.png" alt="Настройки пользователя OCI"/>
+  </Step>
+
+  <Step title="Откройте Customer Secret Keys">
+    В разделе «Resources» нажмите «Customer Secret Keys».
+
+    <img className="rounded-image" src="/assets/admins/connectors/blob/oci/apikeys.png" alt="Customer secret keys в OCI"/>
+  </Step>
+
+  <Step title="Сгенерируйте секретный ключ">
+    Нажмите «Generate Secret Key».
+  </Step>
+
+  <Step title="Назовите ключ">
+    Введите понятное имя ключа (например, «YahontOCIConnector»).
+  </Step>
+
+  <Step title="Сгенерируйте и скопируйте ключ">
+    Нажмите «Generate Secret Key». Вы увидите свой секретный ключ. Обязательно сразу скопируйте его,
+    так как позже получить его будет нельзя.
+  </Step>
+
+  <Step title="Проверьте список ключей">
+    Вы должны перейти на страницу «Customer Secret Keys» и увидеть список ключей (включая имя только что созданного
+    ключа). Соответствующий access key должен присутствовать.
+
+    <img className="rounded-image" src="/assets/admins/connectors/blob/oci/secretkeys.png" alt="Список секретных ключей OCI"/>
+
+    <img className="rounded-image" src="/assets/admins/connectors/blob/oci/hoverkey.png" alt="Наведите на ключ, чтобы увидеть access key"/>
+  </Step>
+
+  <Step title="Найдите пространство имён Object Storage">
+    Чтобы найти пространство имён Object Storage вашей аренды (tenancy),
+    нажмите значок пользователя в правом верхнем углу и выберите «Tenancy: [имя вашей аренды]».
+    В сведениях об аренде вы найдёте пространство имён Object Storage.
+  </Step>
+</Steps>
+
+### Индексирование {#indexing}
+
+<Steps>
+  <Step title="Откройте коннектор OCI Storage">
+    Откройте панель администратора и выберите коннектор **Oracle Cloud Infrastructure Storage**.
+  </Step>
+
+  <Step title="Введите учётные данные OCI">
+    На **шаге 1** укажите ваши учётные данные OCI:
+
+    <img className="rounded-image" src="/assets/admins/connectors/blob/oci/Onyx1.png" alt="Ввод учётных данных OCI"/>
+
+    - Укажите OCI Access Key, Secret Key, Namespace и Region для аутентификации.
+    - Эти учётные данные будут использоваться для доступа к вашим корзинам OCI.
+  </Step>
+
+  <Step title="Сохраните учётные данные">
+    Нажмите «Обновить», чтобы сохранить учётные данные.
+  </Step>
+
+  <Step title="Выберите корзину">
+    На **шаге 2** укажите, какую корзину OCI вы хотите сделать доступной для поиска:
+
+    <img className="rounded-image" src="/assets/admins/connectors/blob/oci/Onyx2.png" alt="Выбор корзины OCI"/>
+  </Step>
+
+  <Step title="Запустите индексацию">
+    Нажмите «Подключить», чтобы начать индексацию.
+  </Step>
+</Steps>
+
+## Как устроено объектное хранилище Oracle Cloud Infrastructure {#understanding-oracle-cloud-infrastructure-object-storage-structure}
+
+Oracle Cloud Infrastructure Object Storage организует данные в корзины.
+В каждой корзине может быть неограниченное число объектов (файлов). Корзину можно представить как корневой каталог,
+а объекты — как файлы в этом каталоге.
+
+Подробнее о структуре OCI Object Storage читайте в [документации Oracle Cloud Infrastructure Object
+Storage](https://docs.oracle.com/en-us/iaas/Content/Object/Concepts/objectstorageoverview.htm).

@@ -1,0 +1,54 @@
+---
+title: "Digital Ocean"
+description: "Развёртывание Yahont на дроплетах Digital Ocean"
+icon: "digital-ocean"
+---
+
+import CustomDomain from "/snippets/custom-domain.mdx"
+import InstallYahont from "/snippets/install-yahont.mdx"
+import DeploymentNextSteps from "/snippets/deployment-next-steps.mdx"
+
+<Steps>
+  <Step title="Создайте дроплет">
+    Создайте дроплет с подходящими ресурсами.
+    В этом руководстве мы используем рекомендуемую конфигурацию с предустановленным Docker.
+
+    <Note>
+      Подробности см. в нашем [руководстве по ресурсам](/deployment/getting_started/resourcing).
+    </Note>
+
+    - Дайте дроплету понятное имя, например `onyx-prod`
+    - Выберите регион, близкий к вашим пользователям
+    - Выберите образ `Docker` на вкладке *Marketplace*
+    - Выберите размер дроплета не менее чем с 4 vCPU и 16 ГБ ОЗУ
+    - Настройте хранилище по руководству по ресурсам
+    - Добавьте свой SSH-ключ для безопасного доступа
+  </Step>
+
+  <Step title="Создайте дроплет">
+    Нажмите **Create Droplet** и откройте сведения о дроплете.
+
+    <Tip>
+      Сохраните **Public IP address** дроплета!
+    </Tip>
+
+    <img className="rounded-image" src="/assets/deployment/setup_guides/do/InstanceIp.png" alt="Публичный IP-адрес Digital Ocean"/>
+  </Step>
+
+  <CustomDomain />
+
+  <Step title="Установите требования Yahont">
+    Поскольку мы выбрали образ Docker из Marketplace, Docker и Docker Compose уже установлены.
+
+    Нам нужно установить только `git`:
+
+        ```bash
+        sudo apt update
+        sudo apt install -y git
+        ```
+  </Step>
+
+  <InstallYahont />
+</Steps>
+
+<DeploymentNextSteps />

@@ -1,0 +1,71 @@
+---
+title: "MCP-сервер"
+description: "Доступ к Yahont из Claude, Cursor и других ИИ-инструментов через Model Context Protocol"
+icon: "plug"
+---
+
+## Обзор {#overview}
+
+MCP-сервер Yahont позволяет подключить любой MCP-совместимый ИИ-инструмент к вашей базе знаний Yahont. Попросите Claude,
+Cursor, Windsurf или любой другой MCP-клиент искать по документам вашей компании, не отрываясь от рабочего процесса.
+
+<Tip>
+  Yahont также может выступать в роли MCP-клиента! Руководство по [MCP-действиям](/admins/actions/mcp) расскажет,
+  как подключить внешние MCP-серверы к вашим агентам Yahont.
+</Tip>
+
+## Что можно делать {#what-you-can-do}
+
+- **Искать по базе знаний** — запросы к Confluence, Google Drive, Slack, GitHub, Jira и более чем 40 другим источникам
+- **Искать в интернете** — находить текущие события и общедоступную информацию
+- **Получать полное содержимое страниц** — извлекать полный текст по любому URL
+
+Все ваши существующие права и средства контроля доступа в Yahont применяются автоматически.
+
+## Поддерживаемые клиенты {#supported-clients}
+
+С Yahont работает любой клиент, поддерживающий Model Context Protocol по HTTP, в том числе:
+
+- [Claude Desktop](https://claude.ai/download)
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
+- [Cursor](https://cursor.com)
+- [Windsurf](https://codeium.com/windsurf)
+- Любой другой [MCP-совместимый клиент](https://modelcontextprotocol.io/)
+
+## Быстрая настройка {#quick-setup}
+
+<Note>
+  В Yahont CE MCP-сервер по умолчанию выключен.
+  Сначала включите его по [руководству](/deployment/configuration/mcp_server#self-hosted-configuration).
+</Note>
+
+Добавьте это в конфигурацию вашего MCP-клиента:
+
+```jsonc
+{
+  "mcpServers": {
+    "yahont": {
+      "url": "https://your-yahont-domain.com/mcp", // or your self-hosted Onyx domain
+      "headers": {
+        "Authorization": "Bearer YOUR_YAHONT_TOKEN_HERE"
+      }
+    }
+  }
+}
+```
+
+Замените `YOUR_YAHONT_TOKEN_HERE` на [персональный токен доступа](/developers/overview#personal-access-tokens)
+или [API-ключ](/admins/user_management/api_keys).
+
+## Подробнее {#learn-more}
+
+<CardGroup cols={2}>
+  <Card title="Полное руководство по MCP-серверу" icon="book-open" href="/deployment/configuration/mcp_server">
+    Подробные инструкции по настройке, справочник по инструментам,
+    устранение неполадок и настройка самостоятельного размещения
+  </Card>
+
+  <Card title="Персональные токены доступа" icon="key" href="/developers/overview#personal-access-tokens">
+    Создайте токен для аутентификации на MCP-сервере
+  </Card>
+</CardGroup>

@@ -1,0 +1,858 @@
+---
+title: "GCP"
+description: "Развёртывание Yahont в Google Cloud с GKE и Terraform или на виртуальной машине Compute Engine"
+icon: "google"
+---
+
+import CustomDomain from "/snippets/custom-domain.mdx"
+import InstallYahont from "/snippets/install-yahont.mdx"
+import DeploymentNextSteps from "/snippets/deployment-next-steps.mdx"
+
+Yahont можно развернуть в Google Cloud двумя способами:
+
+| Вариант | Для чего | Где работает Yahont |
+| --- | --- | --- |
+| [GKE с Terraform](#gke-with-terraform) | Продакшен и крупные команды | GKE, Cloud SQL, Memorystore и Cloud Storage |
+| [Виртуальная машина Compute Engine](#compute-engine-vm) | Пилоты и небольшие команды | Docker Compose на одной виртуальной машине |
+
+<Tip>
+  Прочитайте [руководство по ресурсам](/deployment/getting_started/resourcing), прежде чем начать.
+</Tip>
+
+## GKE с Terraform {#gke-with-terraform}
+
+Yahont поставляется с [модулями Terraform для
+GCP](https://github.com/onyx-dot-app/onyx/tree/main/deployment/terraform/modules/gcp),
+которые создают инфраструктуру Google Cloud для Yahont. Когда Terraform завершит работу,
+вы устанавливаете Yahont с помощью [Helm-чарта](/deployment/local/kubernetes).
+
+<Info>
+  Модули — **эталонная реализация**. Они показывают, как мы развёртываем Yahont,
+  и задают разумные значения по умолчанию. Каждая среда уникальна. Форкните модули и измените их под ваш проект,
+  сеть и требования соответствия.
+</Info>
+
+### Управляемые сервисы {#managed-services}
+
+| Компонент Yahont | По умолчанию в Helm-чарте | Сервис GCP | Модуль Terraform |
+| --- | --- | --- | --- |
+| Kubernetes | Любой кластер | GKE Standard, региональный, с Workload Identity и приватными узлами | `gke` |
+| Сеть | Любая сеть | VPC в пользовательском режиме, Cloud NAT и Private Service Access | `vpc` |
+| PostgreSQL | CloudNativePG в кластере | Cloud SQL for PostgreSQL 16, только приватный IP, только зашифрованные соединения | `postgres` |
+| Redis | Redis в кластере | Memorystore for Redis (не Cluster), с AUTH и TLS на порту `6378` | `redis` |
+| Файловое хранилище | MinIO в кластере | Бакет Cloud Storage, доступ через Workload Identity | `gcs` |
+| Индекс документов | OpenSearch в кластере | OpenSearch в кластере, в выделенном пуле узлов. В GCP нет управляемого OpenSearch. | `gke` |
+| Межсетевой экран веб-приложений | Нет | Политика безопасности Cloud Armor. Подключается через L7-балансировщик нагрузки (по выбору), который создаёт GKE Gateway API. | `cloud-armor`, `l7-ingress` |
+| Секреты | Secrets Kubernetes | Secrets Kubernetes. Как вариант, синхронизируйте их из Secret Manager с помощью значений `externalSecret` чарта. Модули не создают секреты в Secret Manager. | Нет |
+
+Модуль `onyx` соединяет все эти модули. Каждый модуль также можно использовать отдельно.
+
+### Предварительные требования {#prerequisites}
+
+<Steps>
+  <Step title="Установите инструменты">
+    - [Terraform](https://developer.hashicorp.com/terraform/install) `>= 1.12.0`
+    - [Google Cloud CLI](https://cloud.google.com/sdk/docs/install) (`gcloud`)
+    - [`kubectl`](https://kubernetes.io/docs/tasks/tools/) и [`helm`](https://helm.sh/docs/intro/install/)
+    - [`jq`](https://jqlang.org/download/), чтобы прочитать выходное значение Terraform на одном из следующих шагов
+  </Step>
+
+  <Step title="Войдите в Google Cloud">
+    Terraform использует Application Default Credentials. Аккаунт должен уметь создавать сети, кластеры GKE, Cloud SQL,
+    Memorystore, бакеты Cloud Storage, привязки IAM и политики Cloud Armor.
+    Для [L7-балансировщика нагрузки](#serve-through-an-l7-load-balancer-cloud-armor)
+    он также должен уметь создавать глобальные адреса и ресурсы Certificate Manager.
+
+    ```bash
+    gcloud auth login
+    gcloud auth application-default login
+    ```
+  </Step>
+
+  <Step title="Включите два API проекта">
+    Модуль `onyx` включает остальные нужные ему API проекта. Эти два он включить не может,
+    потому что Terraform читает проект до первого применения. Включите их до первого `terraform plan`:
+
+    ```bash
+    gcloud services enable cloudresourcemanager.googleapis.com serviceusage.googleapis.com \
+      --project my-project
+    ```
+  </Step>
+
+  <Step title="Выберите, где запускается Terraform">
+    Terraform создаёт пространство имён `onyx` и сервисный аккаунт Kubernetes через API-сервер GKE.
+    Запускайте `terraform apply` с адреса из `master_authorized_networks`.
+    Если вы задали `private_endpoint_enabled = true`, запускайте изнутри VPC.
+    С любого другого адреса применение останавливается на этих двух ресурсах.
+  </Step>
+</Steps>
+
+### Быстрый старт {#quickstart}
+
+Этот корневой модуль создаёт полный стек Yahont. Он использует модуль из репозитория Yahont с фиксированным тегом.
+
+```hcl main.tf
+locals {
+  project_id = "my-project"
+  region     = "us-east1"
+}
+
+terraform {
+  required_version = ">= 1.12.0"
+
+  required_providers {
+    google     = { source = "hashicorp/google",     version = "~> 7.33" }
+    kubernetes = { source = "hashicorp/kubernetes", version = "~> 2.37" }
+  }
+}
+
+provider "google" {
+  project = local.project_id
+  region  = local.region
+}
+
+variable "postgres_password" {
+  type      = string
+  sensitive = true
+}
+
+module "onyx" {
+  source = "git::https://github.com/onyx-dot-app/onyx.git//deployment/terraform/modules/gcp/onyx?ref=tf-gcp/v1.1.0"
+
+  name       = "onyx"
+  project_id = local.project_id
+  region     = local.region
+  size       = "medium"
+
+  postgres_password = var.postgres_password # pass with TF_VAR_postgres_password
+
+  # Required. Include the address of the machine that runs terraform apply.
+  master_authorized_networks = [
+    { cidr_block = "203.0.113.0/24", display_name = "office" },
+  ]
+}
+
+# An access token for the account that runs Terraform.
+# It does not depend on the cluster, so Terraform can read it before the cluster exists.
+data "google_client_config" "default" {}
+
+provider "kubernetes" {
+  host                   = module.onyx.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.onyx.cluster_ca_certificate)
+  token                  = data.google_client_config.default.access_token
+}
+
+output "cluster_name"            { value = module.onyx.cluster_name }
+output "location"                { value = module.onyx.location }
+output "gcs_bucket_name"         { value = module.onyx.gcs_bucket_name }
+output "gcs_project_id"          { value = module.onyx.gcs_project_id }
+output "postgres_host"           { value = module.onyx.postgres_host }
+output "postgres_db_name"        { value = module.onyx.postgres_db_name }
+output "redis_host"              { value = module.onyx.redis_host }
+output "redis_port"              { value = module.onyx.redis_port }
+output "redis_server_ca_certs"   { value = module.onyx.redis_server_ca_certs }
+output "postgres_server_ca_cert" { value = module.onyx.postgres_server_ca_cert }
+output "cloud_armor_policy_name" { value = module.onyx.cloud_armor_policy_name }
+
+output "redis_auth_string" {
+  value     = module.onyx.redis_auth_string
+  sensitive = true
+}
+```
+
+<Warning>
+  Настройте провайдер `kubernetes` по выходным значениям модуля, как в примере.
+  Не используйте блок `data "google_container_cluster"` и не добавляйте `depends_on` к модулю.
+  При первом применении кластера ещё нет, поэтому источник данных завершается ошибкой на этапе plan.
+</Warning>
+
+Примените его:
+
+```bash
+export TF_VAR_postgres_password='change-me'
+
+terraform init
+terraform plan
+terraform apply
+```
+
+Основную часть времени применения занимают GKE, Cloud SQL и Memorystore.
+
+#### Закрепление версии модуля {#pin-the-module-version}
+
+Релизы модулей GCP имеют теги вида `tf-gcp/vX.Y.Z`. Эти версии независимы от модулей AWS (`tf/vX.Y.Z`),
+модулей Azure (`tf-azure/vX.Y.Z`) и релизов Yahont. В качестве `ref` также подойдёт SHA коммита.
+Для автоматизированных конвейеров используйте SHA, потому что его никто не может переместить.
+
+Всегда задавайте `ref`. Без него Terraform использует ветку по умолчанию,
+и несвязанное изменение может изменить вашу инфраструктуру.
+
+### Размеры в стиле футболок {#t-shirt-sizing}
+
+Параметр `size` задаёт все значения вычислительных ресурсов и плоскости данных вместе.
+Если вы задаёте отдельный параметр размера, это значение заменяет значение уровня по умолчанию.
+
+|  | `small` | `medium` (по умолчанию) | `large` |
+| --- | --- | --- | --- |
+| Для чего | Пилоты и небольшие команды, до примерно 200 пользователей | Подразделение или компания, примерно от 200 до 1000 пользователей | Вся организация, более 1000 пользователей |
+| Машина основного пула | `n2-standard-8` | `n2-standard-16` | `n2-standard-16` |
+| Узлы основного пула | 1–3 | 1–5 | 2–8 |
+| Машина пула индекса документов | `n2-highmem-4` | `n2-highmem-8` | `n2-highmem-16` |
+| Диск пула индекса документов | 256 ГБ | 512 ГБ | 1024 ГБ |
+| Уровень Cloud SQL | `db-custom-2-8192` | `db-custom-2-8192` | `db-custom-4-16384` |
+| Диск Cloud SQL | 64 ГБ | 128 ГБ | 256 ГБ |
+| Память Memorystore | 5 ГБ | 10 ГБ | 20 ГБ |
+
+Число узлов указано для всего пула, а не для каждой зоны.
+Пул индекса документов на всех размерах использует машины с оптимизацией по памяти,
+потому что на нём работает OpenSearch.
+
+### Общая конфигурация {#common-configuration}
+
+<ParamField path="project_id" type="string" required>
+  Проект GCP для всех ресурсов.
+</ParamField>
+
+<ParamField path="region" type="string" required>
+  Регион GCP для всех ресурсов, например `us-east1`. Не используйте зону.
+</ParamField>
+
+<ParamField path="name" type="string" default="onyx">
+  Префикс для имён всех ресурсов. Модуль добавляет к нему активное рабочее пространство Terraform,
+  поэтому один корневой модуль может управлять `dev`, `staging` и `prod`.
+</ParamField>
+
+<ParamField path="size" type="string" default="medium">
+  `small`, `medium` или `large`. См. [Размеры в стиле футболок](#t-shirt-sizing).
+</ParamField>
+
+<ParamField path="postgres_password" type="string" required>
+  Пароль пользователя Cloud SQL `postgres`. Он должен содержать не менее 8 символов.
+  Передавайте через `TF_VAR_postgres_password` или из хранилища секретов.
+</ParamField>
+
+<ParamField path="postgres_db_name" type="string" default="onyx">
+  База данных, которую модуль создаёт для Yahont. Задайте `POSTGRES_DB` равным этому значению в значениях Helm.
+</ParamField>
+
+<ParamField path="postgres_availability_type" type="string" default="ZONAL">
+  `REGIONAL` добавляет резервный инстанс во второй зоне. Стоит примерно в два раза дороже.
+</ParamField>
+
+<ParamField path="master_authorized_networks" type="list(object)" default="[]">
+  Диапазоны CIDR, которые могут обращаться к API-серверу GKE. Нужно задать этот параметр,
+  `private_endpoint_enabled` или `allow_unrestricted_api_server_access`. Модуль не создаёт API-сервер,
+  случайно открытый для всех адресов.
+</ParamField>
+
+<ParamField path="private_endpoint_enabled" type="bool" default="false">
+  Отдавать API-сервер GKE только по его приватному адресу.
+</ParamField>
+
+<ParamField path="enable_redis" type="bool" default="true">
+  Создать инстанс Memorystore for Redis. Задайте `false`, чтобы использовать Redis в кластере.
+</ParamField>
+
+<ParamField path="redis_transit_encryption_enabled" type="bool" default="true">
+  Отдавать TLS на порту `6378`. Изменение этого значения заменяет инстанс.
+</ParamField>
+
+<ParamField path="enable_cloud_armor" type="bool" default="true">
+  Создать политику Cloud Armor с набором правил OWASP Core Rule Set, ограничениями частоты и Adaptive Protection.
+  Политика защищает Yahont только через L7-балансировщик нагрузки. См.
+  [Обслуживание через L7-балансировщик нагрузки](#serve-through-an-l7-load-balancer-cloud-armor).
+</ParamField>
+
+<ParamField path="enable_l7_ingress" type="bool" default="false">
+  Создать глобальный адрес и сертификаты, управляемые Google, для L7-балансировщика нагрузки,
+  который создаёт GKE Gateway API. Политика Cloud Armor подключается к этому балансировщику нагрузки. См.
+  [Обслуживание через L7-балансировщик нагрузки](#serve-through-an-l7-load-balancer-cloud-armor).
+</ParamField>
+
+<ParamField path="l7_domains" type="list(string)" default="[]">
+  Имена хостов, которые обслуживает L7-балансировщик нагрузки, например `["onyx.example.com"]`.
+  Используйте имена хостов в нижнем регистре без подстановочных знаков.
+  При `enable_l7_ingress = true` нужно задать хотя бы одно.
+</ParamField>
+
+<ParamField path="create_network" type="bool" default="true">
+  Задайте `false`, чтобы использовать существующую сеть. Тогда также задайте `network_id`, `subnet_id`,
+  `pods_range_name` и `services_range_name`. В сети уже должны быть Private Service Access и Cloud NAT.
+</ParamField>
+
+<ParamField path="deletion_protection" type="bool" default="true">
+  Защищает кластер, базу данных, кэш, бакет, политику Cloud Armor, а также адрес L7 и авторизации DNS.
+  Задайте `false` и примените до запуска `terraform destroy`.
+</ParamField>
+
+Полный список входных параметров см.
+[`modules/gcp/onyx/variables.tf`](https://github.com/onyx-dot-app/onyx/blob/main/deployment/terraform/modules/gcp/onyx/variables.tf).
+
+### Выходные значения {#outputs}
+
+| Выходное значение | Назначение |
+| --- | --- |
+| `cluster_name`, `location` | Аргументы для `gcloud container clusters get-credentials` |
+| `workload_namespace`, `workload_service_account_name` | Пространство имён релиза Helm и `serviceAccount.name`. Значения по умолчанию — `onyx` и `onyx-workload-access`. |
+| `gcs_bucket_name`, `gcs_project_id` | `GCS_FILE_STORE_BUCKET_NAME` и `GCS_PROJECT_ID` |
+| `postgres_host`, `postgres_port`, `postgres_db_name` | `POSTGRES_HOST`, `POSTGRES_PORT` и `POSTGRES_DB` |
+| `postgres_username` | `POSTGRES_USER` (чувствительное) |
+| `postgres_server_ca_cert` | Сертификат CA для `postgresTls` чарта |
+| `redis_host`, `redis_port` | `REDIS_HOST` и `REDIS_PORT` |
+| `redis_auth_string` | Пароль Redis (чувствительное) |
+| `redis_server_ca_certs` | Сертификаты CA для `redisTls` чарта |
+| `workload_identity_principal` | Участник IAM сервисного аккаунта Yahont. Используйте его, чтобы предоставить доступ к другим ресурсам. |
+| `cloud_armor_policy_name` | `securityPolicy` в `GCPBackendPolicy` |
+| `l7_ip_address` | Адрес L7-балансировщика нагрузки. Направьте на него запись `A` каждого домена. |
+| `l7_address_name` | `NamedAddress` в `spec.addresses` шлюза Gateway |
+| `l7_certificate_map_name` | Аннотация Gateway `networking.gke.io/certmap` |
+| `l7_dns_authorization_records` | Запись `CNAME`, которую нужно добавить у вашего DNS-провайдера для каждого домена |
+| `l7_certificate_names` | Имя сертификата для каждого домена, чтобы проверить его состояние с помощью `gcloud` |
+
+Выходные значения `l7_*` равны `null`, когда `enable_l7_ingress = false`.
+
+### Установка Yahont с помощью Helm {#install-onyx-with-helm}
+
+<Steps>
+  <Step title="Подключитесь к кластеру">
+    ```bash
+    gcloud container clusters get-credentials "$(terraform output -raw cluster_name)" \
+      --location "$(terraform output -raw location)" --project my-project
+    ```
+  </Step>
+
+  <Step title="Установите cert-manager (только для Let's Encrypt)">
+    Этот шаг применяется только к пути L4 по умолчанию, где TLS завершает ingress-nginx.
+    [L7-балансировщик нагрузки](#serve-through-an-l7-load-balancer-cloud-armor) использует вместо этого сертификаты,
+    управляемые Google, и ему не нужны cert-manager и Let's Encrypt.
+
+    Если вы задаёте `letsencrypt.enabled: true` в значениях Helm, чарт создаёт `ClusterIssuer` cert-manager.
+    CRD cert-manager должны существовать до установки чарта. Устанавливайте cert-manager один раз для каждого кластера:
+
+    ```bash
+    helm repo add jetstack https://charts.jetstack.io
+    helm repo update
+
+    helm upgrade --install cert-manager jetstack/cert-manager \
+      --namespace cert-manager --create-namespace \
+      --set crds.enabled=true
+    ```
+  </Step>
+
+  <Step title="Создайте Secrets">
+    Terraform уже создал пространство имён `onyx`. Не создавайте его снова.
+    Создайте Secrets базы данных и Redis в этом пространстве имён:
+
+    ```bash
+    kubectl -n onyx create secret generic onyx-postgresql \
+      --from-literal=username=postgres \
+      --from-literal=password="$TF_VAR_postgres_password"
+
+    kubectl -n onyx create secret generic onyx-redis \
+      --from-literal=redis_password="$(terraform output -raw redis_auth_string)"
+    ```
+  </Step>
+
+  <Step title="Создайте ConfigMap с CA">
+    Memorystore отдаёт TLS. Yahont проверяет сертификат сервера с помощью CA Memorystore.
+    Файл содержит все сертификаты CA из вывода, поэтому ротация CA не прерывает соединение.
+
+    ```bash
+    terraform output -json redis_server_ca_certs | jq -r '.[]' > redis-ca.crt
+    kubectl -n onyx create configmap onyx-redis-ca --from-file=ca.crt=redis-ca.crt
+    ```
+
+    Cloud SQL принимает только зашифрованные соединения. Yahont шифрует по умолчанию,
+    поэтому для PostgreSQL настройка TLS не нужна. Чтобы также проверять сертификат сервера Cloud SQL,
+    создайте этот ConfigMap и задайте `postgresTls` на следующем шаге:
+
+    ```bash
+    terraform output -raw postgres_server_ca_cert > postgres-ca.crt
+    kubectl -n onyx create configmap onyx-postgres-ca --from-file=ca.crt=postgres-ca.crt
+    ```
+  </Step>
+
+  <Step title="Напишите значения Helm">
+    Замените каждый `<...>` выходным значением Terraform с тем же именем.
+
+    ```yaml values.yaml
+    # Run all Onyx pods as the service account that has the bucket grant.
+    serviceAccount:
+      create: false
+      name: onyx-workload-access
+
+    postgresql:
+      enabled: false
+    redis:
+      enabled: false
+    minio:
+      enabled: false
+
+    configMap:
+      # Cloud SQL
+      POSTGRES_HOST: "<postgres_host>"
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: "onyx"            # postgres_db_name. Without it, Onyx uses the "postgres" database.
+      # Memorystore
+      REDIS_HOST: "<redis_host>"
+      REDIS_PORT: "6378"             # redis_port. 6378 is the TLS port.
+      # Cloud Storage
+      FILE_STORE_BACKEND: "gcs"
+      GCS_FILE_STORE_BUCKET_NAME: "<gcs_bucket_name>"
+      GCS_PROJECT_ID: "<gcs_project_id>"
+
+    auth:
+      postgresql:
+        existingSecret: "onyx-postgresql"   # Keys: username, password
+      redis:
+        existingSecret: "onyx-redis"        # Key: redis_password
+
+    # Sets REDIS_SSL=true and verifies the Memorystore certificate.
+    redisTls:
+      enabled: true
+      caConfigMapName: onyx-redis-ca
+      caKey: ca.crt
+
+    # Optional. Verifies the Cloud SQL certificate.
+    postgresTls:
+      enabled: true
+      sslMode: verify-ca
+      caConfigMapName: onyx-postgres-ca
+      caKey: ca.crt
+
+    # Run OpenSearch on the tainted document index pool.
+    opensearch:
+      nodeSelector:
+        onyx.app/workload: document-index
+      tolerations:
+        - key: document-index
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+    ```
+
+    Не задавайте `GCS_SERVICE_ACCOUNT_KEY_PATH` или `GCS_SERVICE_ACCOUNT_KEY_JSON`.
+    Тогда Yahont использует Application Default Credentials,
+    которые получают Workload Identity сервисного аккаунта `onyx-workload-access`.
+    Сервисному аккаунту не нужна аннотация, потому что IAM выдаёт роли бакета напрямую сервисному аккаунту Kubernetes.
+  </Step>
+
+  <Step title="Установите чарт">
+    Установите в пространство имён `onyx`.
+    Сервисный аккаунт с доступом к бакету существует только в этом пространстве имён.
+
+    ```bash
+    helm repo add onyx https://onyx-dot-app.github.io/onyx/
+    helm repo update
+
+    helm upgrade --install onyx onyx/onyx --namespace onyx -f values.yaml
+    ```
+  </Step>
+</Steps>
+
+### Проверка развёртывания {#verify-the-deployment}
+
+<Steps>
+  <Step title="Проверьте поды">
+    ```bash
+    kubectl -n onyx get pods -o wide
+    ```
+
+    Дождитесь, пока все поды перейдут в `Running`. Убедитесь,
+    что под OpenSearch работает на узле пула индекса документов.
+  </Step>
+
+  <Step title="Проверьте журналы API-сервера">
+    ```bash
+    kubectl -n onyx logs deploy/onyx-api-server -f
+    ```
+
+    Ищите эти проблемы:
+
+    - Ошибки `403` от Cloud Storage: поды работают не от `onyx-workload-access` или релиз не в
+    пространстве имён `onyx`.
+    - Ошибки подключения к Redis: `redisTls` не включён или `REDIS_PORT` не равен `6378`.
+  </Step>
+
+  <Step title="Откройте Yahont">
+    Для теста пробросьте локальный порт:
+
+    ```bash
+    kubectl -n onyx port-forward service/onyx-nginx 8080:80
+    ```
+
+    Затем откройте [http://localhost:8080](http://localhost:8080). Для публичного доступа направьте запись DNS,
+    например `onyx.example.com`, на внешний IP Service `onyx-nginx`. Это путь L4 по умолчанию.
+    Чтобы использовать Cloud Armor,
+    обслуживайте через [L7-балансировщик нагрузки](#serve-through-an-l7-load-balancer-cloud-armor).
+  </Step>
+</Steps>
+
+### Обслуживание через L7-балансировщик нагрузки (Cloud Armor) {#serve-through-an-l7-load-balancer-cloud-armor}
+
+По умолчанию чарт открывает Yahont через ingress-nginx за Service типа `LoadBalancer`.
+В GKE это L4-балансировщик нагрузки со сквозной передачей. Политику Cloud Armor нельзя подключить к нему.
+Если вы не подключили политику к L7-балансировщику нагрузки, она ничего не защищает,
+а Google Cloud не показывает ошибку.
+
+Чтобы поставить политику перед Yahont, обслуживайте через глобальный внешний Application Load Balancer.
+Этот балансировщик нагрузки создаёт GKE Gateway API. Модуль `gke` уже включает Gateway API.
+Этот путь заменяет `LoadBalancer` Service ingress-nginx, cert-manager и Let's Encrypt для обслуживаемых им хостов.
+
+Terraform создаёт ресурсы GCP, которые использует Gateway: глобальный адрес и карту сертификатов с одним сертификатом,
+управляемым Google, для каждого домена. Объекты Kubernetes вы применяете сами. Это CRD,
+а `kubernetes_manifest` для CRD приводит к сбою plan нового кластера.
+
+Балансировщик нагрузки отправляет трафик на серверный блок Yahont в nginx чарта на порту `1024`.
+`LoadBalancer` Service чарта использует тот же порт. Маршруты API, веб-сервера и MCP остаются в nginx.
+
+<Steps>
+  <Step title="Включите в Terraform">
+    Добавьте эти входные и выходные параметры в корневой модуль:
+
+    ```hcl main.tf
+    module "onyx" {
+      # ...
+      enable_l7_ingress = true
+      l7_domains        = ["yahont.example.com"]
+    }
+
+    output "l7_ip_address" {
+      value = module.onyx.l7_ip_address
+    }
+
+    output "l7_address_name" {
+      value = module.onyx.l7_address_name
+    }
+
+    output "l7_certificate_map_name" {
+      value = module.onyx.l7_certificate_map_name
+    }
+
+    output "l7_dns_authorization_records" {
+      value = module.onyx.l7_dns_authorization_records
+    }
+
+    output "l7_certificate_names" {
+      value = module.onyx.l7_certificate_names
+    }
+
+    output "cloud_armor_policy_name" {
+      value = module.onyx.cloud_armor_policy_name
+    }
+    ```
+
+    Используйте имена хостов в нижнем регистре без подстановочных знаков.
+    Оставьте `enable_cloud_armor` включённым — это значение по умолчанию. Затем выполните `terraform apply`.
+    Модуль `onyx` включает API Certificate Manager. Если вы задали `enable_project_apis = false`,
+    сначала включите этот API самостоятельно.
+  </Step>
+
+  <Step title="Добавьте записи авторизации DNS">
+    ```bash
+    terraform output -json l7_dns_authorization_records
+    ```
+
+    Для каждого домена добавьте запись у вашего DNS-провайдера. Это `CNAME` с именем `_acme-challenge.<domain>.`.
+    Запись подтверждает, что вы контролируете домен. Она не переключает трафик,
+    поэтому текущий балансировщик нагрузки продолжает обслуживать Yahont.
+  </Step>
+
+  <Step title="Дождитесь сертификатов">
+    ```bash
+    terraform output -json l7_certificate_names
+    gcloud certificate-manager certificates describe <certificate name> \
+      --location=global --project my-project --format='value(managed.state)'
+    ```
+
+    Дождитесь `ACTIVE` у каждого сертификата. Обычно это занимает несколько минут после разрешения `CNAME`,
+    но может занять часы, если DNS-провайдер медлителен. Если сертификат остаётся в `PROVISIONING`,
+    `managed.authorizationAttemptInfo` в полном выводе объясняет причину.
+  </Step>
+
+  <Step title="Примените объекты Kubernetes">
+    Примените эти объекты в пространстве имён релиза.
+    Замените каждое значение в `<>` выходным значением Terraform с тем же именем.
+    В примерах используются имя релиза `onyx` и пространство имён `onyx`.
+
+    ```yaml l7-gateway.yaml
+    # A dedicated Service for the Gateway. Only one GCPBackendPolicy can attach to
+    # a Service, and the chart's own nginx Service changes type in a later step.
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: onyx-nginx-l7
+      namespace: onyx
+    spec:
+      type: ClusterIP
+      selector:
+        app.kubernetes.io/name: nginx
+        app.kubernetes.io/instance: onyx   # the Helm release name
+        app.kubernetes.io/component: controller
+      ports:
+        - name: http
+          port: 80
+          targetPort: 1024
+          protocol: TCP
+    ---
+    apiVersion: gateway.networking.k8s.io/v1
+    kind: Gateway
+    metadata:
+      name: onyx
+      namespace: onyx
+      annotations:
+        networking.gke.io/certmap: <l7_certificate_map_name>
+    spec:
+      gatewayClassName: gke-l7-global-external-managed
+      addresses:
+        - type: NamedAddress
+          value: <l7_address_name>
+      listeners:
+        # No tls block: the certificate map annotation supplies the certificates.
+        - name: https
+          protocol: HTTPS
+          port: 443
+        - name: http
+          protocol: HTTP
+          port: 80
+    ---
+    apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    metadata:
+      name: onyx-https
+      namespace: onyx
+    spec:
+      parentRefs:
+        - name: onyx
+          sectionName: https
+      hostnames:
+        - yahont.example.com   # every l7_domains entry
+      rules:
+        - backendRefs:
+            - name: onyx-nginx-l7
+              port: 80
+    ---
+    apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    metadata:
+      name: onyx-http-redirect
+      namespace: onyx
+    spec:
+      parentRefs:
+        - name: onyx
+          sectionName: http
+      hostnames:
+        - yahont.example.com
+      rules:
+        - filters:
+            - type: RequestRedirect
+              requestRedirect:
+                scheme: https
+                statusCode: 301
+    ---
+    # The load balancer probes the pod on 1024 directly. The default probe path
+    # is "/", which proxies to the web server; /nginx-health answers in nginx.
+    apiVersion: networking.gke.io/v1
+    kind: HealthCheckPolicy
+    metadata:
+      name: onyx-nginx-l7
+      namespace: onyx
+    spec:
+      default:
+        config:
+          type: HTTP
+          httpHealthCheck:
+            portSpecification: USE_FIXED_PORT
+            port: 1024
+            requestPath: /nginx-health
+      targetRef:
+        group: ""
+        kind: Service
+        name: onyx-nginx-l7
+    ---
+    apiVersion: networking.gke.io/v1
+    kind: GCPBackendPolicy
+    metadata:
+      name: onyx-nginx-l7
+      namespace: onyx
+    spec:
+      default:
+        securityPolicy: <cloud_armor_policy_name>
+        # The load balancer counts the whole response, not the idle time as nginx
+        # does. Chat and deep research stream for many minutes.
+        timeoutSec: 3600
+        # Cloud Armor writes its decisions to these logs. A GCPBackendPolicy with
+        # no logging section turns them off.
+        logging:
+          enabled: true
+          sampleRate: 1000000
+      targetRef:
+        group: ""
+        kind: Service
+        name: onyx-nginx-l7
+    ```
+
+    ```bash
+    kubectl apply -f l7-gateway.yaml
+    ```
+
+    Gateway программируется несколько минут. Когда он готов,
+    `kubectl -n onyx describe gateway onyx` показывает `Programmed: True`.
+    В статусе каждой политики отображается `Attached: True`.
+  </Step>
+
+  <Step title="Проверьте новый путь до переключения DNS">
+    Отправьте запрос на новый адрес без изменения DNS:
+
+    ```bash
+    curl --resolve yahont.example.com:443:<l7_ip_address> https://yahont.example.com/nginx-health
+    ```
+  </Step>
+
+  <Step title="Сообщите Yahont его публичный URL">
+    Yahont помечает свои cookie как `Secure` и строит редиректы входа на основе `WEB_DOMAIN`.
+    Задайте его равным HTTPS-адресу в значениях Helm:
+
+    ```yaml values.yaml
+    configMap:
+      WEB_DOMAIN: "https://yahont.example.com"
+    ```
+  </Step>
+
+  <Step title="Переключите DNS">
+    Направьте запись `A` каждого домена на `l7_ip_address`.
+  </Step>
+
+  <Step title="Удалите L4-балансировщик нагрузки">
+    После того как старая запись DNS истечёт в кэшах, `LoadBalancer` ingress-nginx ничем не используется.
+    Сделайте его внутрикластерным Service. Это удалит L4-балансировщик нагрузки и его публичный адрес.
+    Сертификат для этих хостов теперь отдаёт Certificate Manager,
+    поэтому также отключите `ingress` и `letsencrypt` чарта. Cert-manager для этих хостов больше не нужен.
+
+    ```yaml values.yaml
+    nginx:
+      controller:
+        service:
+          type: ClusterIP
+
+    ingress:
+      enabled: false
+
+    letsencrypt:
+      enabled: false
+    ```
+
+    Затем выполните `helm upgrade` с новыми значениями.
+  </Step>
+</Steps>
+
+Задайте `cloud_armor_preview = true`, чтобы записывать в журнал совпадения правил без блокировки запросов,
+пока вы настраиваете правила.
+
+Примечания:
+
+- Cloud Armor видит настоящий адрес клиента. Ограничения частоты считают каждого клиента отдельно,
+  а правила по IP и стране применяются к клиенту.
+- Когда вы добавляете или удаляете домен, Terraform добавляет или удаляет только сертификат этого домена.
+  Остальные домены продолжают работать.
+- `deletion_protection` защищает адрес и авторизации DNS.
+  Задайте `false` и примените до удаления домена.
+- Если один ответ может передаваться дольше одного часа, увеличьте `timeoutSec`.
+
+### Запуск серверов моделей на GPU (необязательно) {#run-the-model-servers-on-gpus-optional}
+
+`enable_gpu_node_pool = true` добавляет пул узлов с GPU. Он не переносит сервер модели в этот пул.
+У пула есть taint `nvidia.com/gpu=present:NoSchedule` и метка `onyx.app/gpu=true`. Чтобы использовать его,
+задайте `nodeSelector`,
+`tolerations` и лимит `nvidia.com/gpu` для `inferenceCapability` или `indexCapability` в значениях Helm.
+В пуле GPU по умолчанию один узел с одним GPU, поэтому отдавайте GPU только одному серверу модели.
+
+### Примечания {#notes}
+
+- **Хранение состояния.** Для общего или продакшен-использования храните состояние Terraform в
+  [бэкенде `gcs`](https://developer.hashicorp.com/terraform/language/backend/gcs).
+- **Рабочие пространства.** Имена ресурсов включают активное рабочее пространство Terraform. Модуль с `name = "onyx"` в рабочем пространстве
+  `prod` создаёт ресурсы `onyx-prod`.
+- **Существующая сеть.** При `create_network = false` в сети уже должно быть подключение Private Service Access.
+  Иначе создание Cloud SQL и Memorystore завершится ошибкой.
+- **Имя базы данных.** Если вы не зададите `POSTGRES_DB`, Yahont использует базу данных `postgres`, которую создаёт Cloud SQL,
+  а база данных `onyx` останется пустой.
+- **Соединения с базой данных.** `postgres_max_connections` по умолчанию равно `500`. Увеличьте его, если добавляете много реплик API или
+  рабочих процессов. Изменение перезапускает инстанс.
+- **Удаление.** Задайте `deletion_protection = false` и примените до запуска `terraform destroy`.
+
+## Виртуальная машина Compute Engine {#compute-engine-vm}
+
+**Убедитесь, что ваш аккаунт Google Cloud может создавать инстансы виртуальных машин.**
+
+<Steps>
+  <Step title="Создайте виртуальную машину">
+    Создайте виртуальную машину с подходящими ресурсами.
+    В этом руководстве мы используем рекомендуемый инстанс `e2-standard-4`.
+
+    <Note>
+      Подробности см. в нашем [руководстве по ресурсам](/deployment/getting_started/resourcing).
+    </Note>
+
+    - Дайте инстансу понятное имя, например `onyx-prod`
+    - Выберите загрузочный диск `Debian GNU/Linux 12`
+    - Выберите тип машины `e2-standard-4`
+    - Выберите `Allow HTTPS traffic` в разделе **Firewall**
+    - Настройте хранилище по руководству по ресурсам
+
+    <img className="rounded-image" src="/assets/deployment/setup_guides/gcp/CreateVmInstance.png" alt="Создание инстанса виртуальной машины"/>
+
+    <img className="rounded-image" src="/assets/deployment/setup_guides/gcp/Instance.png" alt="Параметры инстанса"/>
+
+    <img className="rounded-image" src="/assets/deployment/setup_guides/gcp/Firewall.png" alt="Параметры брандмауэра"/>
+  </Step>
+
+  <Step title="Создайте инстанс">
+    Нажмите **Create** и откройте сведения об инстансе.
+
+    <Tip>
+      Сохраните **External IP** инстанса!
+    </Tip>
+  </Step>
+
+  <CustomDomain />
+
+  <Step title="Установите требования Yahont">
+    Yahont требуются `git`, `docker` и `docker compose`.
+
+    Чтобы установить их в Debian GNU/Linux 12, выполните следующее:
+
+        ```bash
+        sudo apt update
+        sudo apt install -y ca-certificates curl gnupg git
+
+        sudo install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+        sudo chmod a+r /etc/apt/keyrings/docker.gpg
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+        sudo apt update
+        sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+        ```
+
+    Если вы используете Rocky Linux, RHEL или аналогичный образ, выполните следующее:
+
+        ```bash
+        sudo dnf install -y dnf-plugins-core git
+        sudo dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
+
+        sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+        sudo systemctl enable --now docker
+        ```
+
+    Чтобы запускать `docker` без `sudo`, добавьте своего пользователя в группу `docker`. Затем выйдите и войдите снова:
+
+        ```bash
+        sudo usermod -aG docker $USER
+        ```
+  </Step>
+
+  <InstallYahont />
+</Steps>
+
+<DeploymentNextSteps />

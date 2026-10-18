@@ -1,0 +1,791 @@
+---
+title: "Настройка Yahont"
+description: "Как настроить Yahont с помощью переменных окружения и файлов развёртывания"
+icon: "sliders"
+---
+
+<Warning>
+  Эта страница посвящена настройке вашего **развёртывания**.
+
+  Подробнее о настройке приложения Yahont см. в нашей [документации для администраторов](/admins/overview)!
+</Warning>
+
+## Настройка развёртываний Yahont {#configuring-onyx-deployments}
+
+Yahont предлагает широкий набор параметров конфигурации на уровне развёртывания.
+Они задаются переменными окружения в файле `.env` рядом с `docker-compose.yml`.
+Docker Compose передаёт все переменные из `.env` в контейнеры Yahont.
+
+<Info>
+  Имена переменных совпадают с Onyx, потому что код сервера пока называется Onyx.
+</Info>
+
+Если у вас нет файла `.env`:
+
+```bash
+cd yahont-ce/deployment/docker_compose
+cp env.template .env
+```
+
+Шаблон `env.template` содержит подмножество распространённых переменных окружения.
+Вы можете добавить в `.env` другие переменные окружения (перечислены ниже). Чтобы применить изменения в `.env`,
+выполните `docker compose up -d` из каталога `deployment/docker_compose`.
+
+## Режим «Лайт» {#onyx-lite}
+
+Режим «Лайт» — минимальное развёртывание Yahont для команд,
+которым нужен только базовый чат с LLM без коннекторов и поиска RAG. Он подходит для сред с ограниченными ресурсами,
+быстрой оценки и случаев, когда нужно использовать собственную LLM и инструменты без загрузки внешних источников данных.
+
+### Что включено {#whats-included}
+
+Режим «Лайт» сохраняет следующие возможности:
+- Чат с LLM
+- Инструменты (включая интерпретатор кода, когда включён его сервис)
+- Загрузка файлов пользователей
+- Проекты
+- Агенты с инструкциями и инструментами
+
+### Что отключено {#whats-removed}
+
+Режим «Лайт» отключает или не использует:
+- **Векторную индексацию и поиск RAG**: `DISABLE_VECTOR_DB=true` не позволяет использовать OpenSearch, даже если он запущен
+- **Redis**: кэширование и управление сессиями выполняет PostgreSQL
+- **Серверы моделей**: нет эмбеддингов документов; сервер модели индексации и сервер модели вывода не запускаются
+- **Фоновые рабочие процессы Celery**: API-сервер выполняет фоновую работу напрямую
+- **Файловое хранилище S3**: файлы хранит PostgreSQL, даже если объектное хранилище запущено
+- **Коннекторы**: все коннекторы источников данных отключены
+- **Знания агентов**: знания из источников недоступны, потому что нет индексации
+
+### Как это работает {#how-it-works}
+
+Режим «Лайт» — не отдельное приложение. Он использует те же образы Yahont с конфигурацией, которая хранит файлы,
+данные кэша и сессии в PostgreSQL и отключает доступ к векторной базе данных. Ключевые переменные окружения,
+которые это обеспечивают:
+
+| Переменная           | Значение для режима «Лайт» | По умолчанию в стандартном режиме | Назначение                                   |
+|----------------------|--------------|-------------------|----------------------------------------------|
+| `DISABLE_VECTOR_DB`  | `true`       | `false`           | Отключает векторную индексацию, коннекторы и поиск RAG |
+| `CACHE_BACKEND`      | `postgres`   | `redis`           | Использует PostgreSQL для кэширования вместо Redis |
+| `AUTH_BACKEND`       | `postgres`   | `redis`           | Использует PostgreSQL для сессий вместо Redis|
+| `FILE_STORE_BACKEND` | `postgres`   | `s3`              | Использует PostgreSQL для хранения файлов вместо S3 |
+
+### Запуск режима «Лайт» с Docker Compose {#deploying-onyx-lite-with-docker-compose}
+
+Режим «Лайт» запускается файлом переопределения Docker Compose `docker-compose.lite.yml`,
+который накладывается на `docker-compose.yml`.
+Переопределение переносит неиспользуемые сервисы в [профили](https://docs.docker.com/compose/how-tos/profiles/)
+Docker Compose, чтобы они не запускались по умолчанию.
+
+Установщик запускает этот режим параметром `--lite` (`-Lite`) — см.
+[Быстрый старт](/deployment/getting_started/quickstart). Вручную выполните из каталога `deployment/docker_compose`:
+
+```bash
+cp env.template .env
+openssl rand -hex 32   # вставьте результат в USER_AUTH_SECRET в файле .env
+COMPOSE_PROFILES= docker compose -f docker-compose.yml -f docker-compose.lite.yml up -d
+```
+
+Пустое значение `COMPOSE_PROFILES=` отключает объектное хранилище из `env.template`.
+
+Сервисы, запускаемые в режиме «Лайт»:
+
+| Сервис | Описание |
+|------------------|-----------------------------------|
+| api_server | API-сервер Yahont (также выполняет фоновую работу) |
+| web_server | Фронтенд на Next.js |
+| relational_db | База данных PostgreSQL |
+| nginx | Обратный прокси |
+| code-interpreter | Сервис инструмента Python |
+
+<Note>
+  Настройка файла `.env` такая же, как для стандартного режима. Переменные окружения,
+  специфичные для режима «Лайт» (`DISABLE_VECTOR_DB`, `CACHE_BACKEND`, `AUTH_BACKEND`, `FILE_STORE_BACKEND`),
+  задаются файлом переопределения автоматически, поэтому добавлять их в `.env` не нужно.
+</Note>
+
+<Tip>
+  Чтобы перейти с режима «Лайт» на стандартный режим,
+  запустите стандартную команду `docker compose up -d` без `docker-compose.lite.yml`. Файлы, загруженные в одном режиме,
+  в другом не видны: запускайте режимы под разными именами проекта (`docker compose -p ...`).
+</Tip>
+
+<Tip>
+  Многие параметры доступны в панели администратора! Эта страница описывает только конфигурацию на уровне развёртывания.
+</Tip>
+
+## Часто настраиваемые параметры {#commonly-configured-options}
+
+### Аутентификация {#authentication}
+
+<CardGroup>
+  <Card title="Базовая аутентификация" icon="shield-check" href="/deployment/authentication/basic">
+    Настройте аутентификацию по электронной почте и паролю.
+  </Card>
+
+  <Card title="Google OAuth" icon="google" href="/deployment/authentication/oauth">
+    Аутентификация с помощью аккаунтов Google.
+  </Card>
+
+  <Card title="OIDC" icon="shield-check" href="/deployment/authentication/oidc">
+    Единый вход с помощью OpenID Connect (OIDC)
+  </Card>
+
+  <Card title="SAML" icon="shield-check" href="/deployment/authentication/saml">
+    Единый вход с помощью Security Assertion Markup Language (SAML)
+  </Card>
+</CardGroup>
+
+### Собственный домен {#custom-domain}
+
+Чтобы разместить Yahont на собственном домене, задайте переменную окружения `WEB_DOMAIN` и обновите записи DNS,
+чтобы они указывали на публичный IP вашего развёртывания Yahont.
+
+Пошаговую инструкцию с HTTPS см. на странице [Yahont за обратным прокси с HTTPS](/deployment/production/reverse_proxy).
+
+### HTTPS {#ssl}
+
+В Docker Compose из репозитория нет сертификатов и HTTPS. Поставьте перед Yahont обратный прокси.
+Инструкция с Nginx и Let's Encrypt: [Yahont за обратным прокси с HTTPS](/deployment/production/reverse_proxy).
+
+### Веб-поиск {#web-search}
+
+Поставщики веб-поиска (Srezai, Exa, Serper, Brave, Google PSE, SearXNG, Tavily, Firecrawl)
+подключаются в панели администратора. В Yahont Cloud Exa и Google PSE недоступны.
+Переменные окружения для этого не нужны. Подробнее — на странице [Веб-поиск](/overview/core_features/web_search).
+
+<Note>
+  Веб-поиск в Yahont постоянно развивается, и эти инструкции будут обновляться по мере улучшений.
+</Note>
+
+### Журналирование {#logging}
+
+При самостоятельном размещении Yahont можно настроить уровень детализации журналов. Это помогает при поиске неполадок.
+
+Задайте `LOG_LEVEL=debug` в файле `.env` и выполните `docker compose up -d`.
+Переменная действует во всех процессах Yahont: `api_server`, `web_server`, серверах моделей и воркерах Celery.
+
+### Наблюдаемость {#observability}
+
+Вы можете подключить к Yahont свои инструменты наблюдаемости. Мы поддерживаем следующих поставщиков:
+
+**Braintrust (рекомендуется)**
+
+Задайте следующие переменные окружения:
+
+```bash
+BRAINTRUST_PROJECT="Your project name"
+BRAINTRUST_API_KEY="sk-..."
+```
+
+**Langfuse**
+
+```bash
+LANGFUSE_SECRET_KEY="sk-..."
+LANGFUSE_PUBLIC_KEY="pk-..."
+LANGFUSE_BASE_URL="https://cloud.langfuse.com" # Or "https://us.cloud.langfuse.com"
+```
+
+## Переменные окружения Yahont {#onyx-environment-variables}
+
+<Info>
+  Это не исчерпывающий список всех переменных окружения Yahont.
+</Info>
+
+<AccordionGroup>
+  <Accordion title="Конфигурация Docker Compose">
+    `IMAGE_TAG`: тег образов `yahontai/yahont-ce-*`, которые `docker compose up -d` скачивает из Docker Hub.
+    `latest` — последний выпуск. Чтобы закрепить версию, укажите тег выпуска вида `vX.Y.Z`.
+    Команда `docker compose up -d --build` собирает образы из исходного кода и называет их по этому тегу.
+
+    `CODE_INTERPRETER_IMAGE_TAG`: версия сервиса выполнения кода. Он выходит отдельно,
+    поэтому `IMAGE_TAG` на него не влияет. По умолчанию `0.4.9`. Меняйте значение, только если нужна другая версия.
+
+    `BASE_IMAGE_REGISTRY`: реестр, из которого Compose берёт образы postgres, redis, nginx, OpenSearch,
+    SeaweedFS и MinIO. По умолчанию `docker.io`. Укажите зеркало, если Docker Hub недоступен.
+
+    `HOST_PORT`: порт на хосте, на котором открывается приложение. По умолчанию `3000` (`localhost:3000`).
+
+    `HOST_PORT_80`: порт на хосте, на котором открывается `nginx`. По умолчанию `80`.
+
+    `DOCKER_SOCK_PATH`: путь к сокету Docker хоста. По умолчанию `/var/run/docker.sock`.
+    Сервис выполнения кода запускает контейнеры через этот сокет: он работает от root и монтирует сокет.
+    Запускайте Yahont только на доверенных хостах.
+    Для Docker без root на Linux укажите `${XDG_RUNTIME_DIR}/docker.sock`.
+
+    `SKIP_TYPE_CHECK`: сборка веб-сервера пропускает проверку типов. По умолчанию `1`.
+    Каталог тестов не попадает в контекст Docker, и проверка падает на импортах тестов, поэтому значение `1` безопасно.
+
+    `COMPOSE_PROFILES`: профили Docker Compose. Эту переменную читает сам Docker Compose, а не код Yahont.
+    В `env.template` задано `s3-filestore`: оно включает объектное хранилище и прежний сервис MinIO.
+    Пустое значение отключает объектное хранилище: так работает режим «Лайт».
+    Чтобы хранить файлы в PostgreSQL в стандартном режиме,
+    уберите `s3-filestore` и задайте `FILE_STORE_BACKEND=postgres`.
+
+    `COMPOSE_FILE`: список файлов Compose, которые Docker Compose использует по умолчанию.
+    Эту переменную читает сам Docker Compose. Разделитель в списке: `:` на Linux и macOS, `;` на Windows.
+    Установщик с параметром `--lite` записывает `docker-compose.yml:docker-compose.lite.yml`,
+    поэтому команды `docker compose` в этом каталоге работают без ключа `-f`.
+
+    `NGINX_PROXY_CONNECT_TIMEOUT`, `NGINX_PROXY_SEND_TIMEOUT`, `NGINX_PROXY_READ_TIMEOUT`:
+    сколько секунд `nginx` ждёт ответа от `api_server` и `web_server`. По умолчанию `600`. Увеличьте значения,
+    если долгие запросы обрываются по тайм-ауту.
+  </Accordion>
+
+  <Accordion title="Конфигурация приложения">
+    `SKIP_WARM_UP`: пропустить процесс прогрева приложения для горячей перезагрузки `API server`.
+    Задавайте только для целей разработки.
+
+    `WEB_DOMAIN`: задайте, если открываете Yahont не через `localhost`, например `https://yahont.example.ru`.
+
+    `DISABLE_USER_KNOWLEDGE`: определяет, могут ли пользователи использовать функцию «Мои документы» с ассистентами.
+
+    `ONYX_QUERY_HISTORY_TYPE`: Только Enterprise Edition, в CE не действует.
+    Управляет отчётами по истории запросов (показывать адреса электронной почты пользователей, анонимно, без запросов)
+  </Accordion>
+
+  <Accordion title="Аутентификация и безопасность">
+    `USER_AUTH_SECRET`: обязательно. Подписывает cookie сброса пароля, подтверждения почты, состояния OAuth и капчи.
+    Сервер API не запускается с пустым значением. Сгенерируйте значение командой `openssl rand -hex 32`.
+
+    `PASSWORD_MIN_LENGTH`: для базовой аутентификации. Требование к минимальной длине пароля
+
+    `PASSWORD_MAX_LENGTH`: для базовой аутентификации. Требование к максимальной длине пароля
+
+    `PASSWORD_REQUIRE_UPPERCASE`: для базовой аутентификации. Требовать заглавные буквы в паролях
+
+    `PASSWORD_REQUIRE_LOWERCASE`: для базовой аутентификации. Требовать строчные буквы в паролях
+
+    `PASSWORD_REQUIRE_DIGIT`: для базовой аутентификации. Требовать цифры в паролях
+
+    `PASSWORD_REQUIRE_SPECIAL_CHAR`: для базовой аутентификации. Требовать специальные символы в паролях
+
+    `ENCRYPTION_KEY_SECRET`: Только Enterprise Edition, в CE не действует.
+    Ключ для шифрования учётных данных коннекторов, ключей API и т. д. В CE значение ничего не шифрует:
+    сервер пишет в журнал предупреждение, что версия MIT не поддерживает шифрование секретов.
+
+    `MASK_CREDENTIAL_PREFIX`: маскировать учётные данные коннекторов в интерфейсе администратора. Отключите,
+    если администраторы должны видеть учётные данные в панели администратора.
+
+    `SESSION_EXPIRE_TIME_SECONDS`: срок действия сессии в секундах.
+
+    `AUTH_COOKIE_EXPIRE_TIME_SECONDS`: срок действия токена JWT в секундах.
+
+    `VALID_EMAIL_DOMAINS`: список разрешённых доменов электронной почты через запятую.
+
+    `REQUIRE_EMAIL_VERIFICATION`: требовать подтверждение адреса электронной почты при регистрации
+
+    `TRACK_EXTERNAL_IDP_EXPIRY`: учитывать поле `expires_at`, возвращаемое внешним поставщиком удостоверений.
+    По умолчанию отключено, так как у многих поставщиков аутентификации очень короткие сроки действия.
+
+    `JWT_PUBLIC_KEY_URL`: конечная точка JWKS или PEM для проверки bearer-токенов JWT API. См.
+    [Аутентификация по заголовку JWT](/deployment/authentication/jwt).
+
+    `JWT_EXPECTED_AUDIENCE`: отклонять bearer-токены JWT, у которых утверждение `aud` не совпадает.
+    Пустое значение отключает проверку.
+
+    `JWT_EXPECTED_ISSUER`: отклонять bearer-токены JWT, у которых утверждение `iss` не совпадает.
+    Пустое значение отключает проверку.
+  </Accordion>
+
+  <Accordion title="Конфигурация OAuth и OIDC">
+    `OAUTH_CLIENT_ID`: и для Google OAuth, и для OIDC.
+
+    `OAUTH_CLIENT_SECRET`: и для Google OAuth, и для OIDC.
+
+    `OPENID_CONFIG_URL`: для OIDC.
+
+    `GOOGLE_OAUTH_SCOPE_OVERRIDE`: для входа через Google. Список областей через запятую,
+    запрашиваемых у Google вместо значений по умолчанию (`openid,email,profile`). Полезно, когда токен доступа,
+    полученный при входе, нужно передавать в вызовы инструментов,
+    требующие дополнительных областей API Google (например, при использовании сквозного OAuth для MCP-сервера).
+    Все добавленные здесь области также должны быть включены для клиента OAuth в Google Cloud Console.
+
+    `OIDC_SCOPE_OVERRIDE`: для входа через OIDC. Список областей через запятую,
+    запрашиваемых у поставщика OIDC вместо значений по умолчанию. Тот же сценарий использования,
+    что и у `GOOGLE_OAUTH_SCOPE_OVERRIDE`.
+
+    `OIDC_PKCE_ENABLED`: для входа через OIDC. Задайте `true`, чтобы включить PKCE в потоке входа OIDC.
+    По умолчанию отключено для обратной совместимости.
+  </Accordion>
+
+  <Accordion title="Аутентификация по заголовку JWT">
+    `JWT_PUBLIC_KEY_URL`: URL, по которому доступен материал открытого ключа (JWKS или PEM) внешнего издателя токенов.
+    Когда он задан, Yahont принимает JWT RS256 в заголовке `Authorization:
+    Bearer` и определяет пользователя по утверждению с адресом электронной почты из токена. Полное поведение см.
+    в разделе [Аутентификация по заголовку JWT](/deployment/authentication/jwt).
+  </Accordion>
+
+  <Accordion title="Конфигурация электронной почты">
+    <Info>
+
+      Задайте следующее для подтверждения адреса электронной почты и приглашений при базовой аутентификации.
+    </Info>
+
+    `SMTP_SERVER`: имя хоста сервера SMTP
+
+    `SMTP_PORT`: порт сервера SMTP
+
+    `SMTP_USER`: имя пользователя SMTP
+
+    `SMTP_PASS`: пароль SMTP
+
+    `EMAIL_FROM`: адрес отправителя
+
+    `SENDGRID_API_KEY`: альтернатива SMTP для доставки почты.
+
+    `ENABLE_EMAIL_INVITES`: включить приглашения по электронной почте
+  </Accordion>
+
+  <Accordion title="Конфигурация Slack">
+    `OAUTH_SLACK_CLIENT_ID`: Только Enterprise Edition, в CE не действует. ID клиента Slack OAuth для бота Slack.
+
+    `OAUTH_SLACK_CLIENT_SECRET`: Только Enterprise Edition, в CE не действует.
+    Секрет клиента Slack OAuth для бота Slack.
+  </Accordion>
+
+  <Accordion title="Конфигурация Postgres">
+    `POSTGRES_USER`: имя пользователя PostgreSQL
+
+    `POSTGRES_PASSWORD`: пароль PostgreSQL
+
+    `POSTGRES_HOST`: хост PostgreSQL
+
+    `POSTGRES_PORT`: порт PostgreSQL
+
+    `POSTGRES_DB`: имя базы данных PostgreSQL
+
+    `POSTGRES_API_SERVER_POOL_SIZE`: размер пула соединений API-сервера
+
+    `POSTGRES_API_SERVER_POOL_OVERFLOW`: переполнение пула API-сервера
+
+    `POSTGRES_API_SERVER_READ_ONLY_POOL_SIZE`: размер пула только для чтения
+
+    `POSTGRES_API_SERVER_READ_ONLY_POOL_OVERFLOW`: переполнение пула только для чтения
+
+    `POSTGRES_USE_NULL_POOL`: использовать нулевой пул соединений
+
+    `POSTGRES_POOL_PRE_PING`: включить предварительную проверку соединения
+
+    `POSTGRES_POOL_RECYCLE`: тайм-аут переработки пула в секундах
+
+    `USE_IAM_AUTH`: использовать аутентификацию IAM для базы данных
+
+    `DB_READONLY_USER`: пользователь базы данных только для чтения
+
+    `DB_READONLY_PASSWORD`: пароль пользователя базы данных только для чтения
+
+    `POSTGRES_SSLMODE`: режим SSL libpq (`disable`, `allow`, `prefer`, `require`, `verify-ca`, `verify-full`).
+    Игнорируется, когда задан `USE_IAM_AUTH`.
+
+    `POSTGRES_SSLROOTCERT`: путь к сертификату CA для проверки сервера (`verify-ca` / `verify-full`).
+
+    `POSTGRES_SSLCERT`: путь к клиентскому сертификату для взаимного TLS
+
+    `POSTGRES_SSLKEY`: путь к закрытому ключу клиента для взаимного TLS
+
+    `POSTGRES_SSLKEY_PASSWORD`: парольная фраза для `POSTGRES_SSLKEY`, если он зашифрован
+  </Accordion>
+
+  <Accordion title="Конфигурация Redis">
+    `REDIS_SSL`: включить SSL для соединений с Redis
+
+    `REDIS_HOST`: хост Redis
+
+    `REDIS_PORT`: порт Redis
+
+    `REDIS_PASSWORD`: пароль Redis
+
+    `REDIS_REPLICA_HOST`: хост реплики Redis
+
+    `REDIS_DB_NUMBER`: номер базы данных Redis
+
+    `REDIS_DB_NUMBER_CELERY_RESULT_BACKEND`: номер базы данных бэкенда результатов Celery
+
+    `REDIS_DB_NUMBER_CELERY`: номер базы данных брокера Celery
+
+    `REDIS_HEALTH_CHECK_INTERVAL`: интервал проверки состояния
+
+    `REDIS_POOL_MAX_CONNECTIONS`: максимум соединений в пуле
+
+    `REDIS_SSL_CERT_REQS`: требования к сертификату SSL
+
+    `REDIS_SSL_CA_CERTS`: сертификаты CA для SSL
+
+    `REDIS_SSL_CERTFILE`: клиентский сертификат для взаимного TLS (задаётся вместе с `REDIS_SSL_KEYFILE`)
+
+    `REDIS_SSL_KEYFILE`: закрытый ключ клиента для взаимного TLS
+
+    `REDIS_SENTINEL_HOSTS`: список узлов Redis Sentinel в формате `host:port` через запятую. Когда задан,
+    Yahont и Celery определяют текущий главный узел через Sentinel вместо `REDIS_HOST` / `REDIS_PORT`.
+    Нельзя сочетать с `USE_REDIS_IAM_AUTH`.
+
+    `REDIS_SENTINEL_MASTER_NAME`: имя главного узла Sentinel. По умолчанию `mymaster`.
+
+    `REDIS_SENTINEL_PASSWORD`: пароль для узлов Sentinel, если им нужна отдельная аутентификация от узлов данных.
+  </Accordion>
+
+  <Accordion title="Конфигурация OpenSearch">
+    `OPENSEARCH_HOST`: хост OpenSearch
+
+    `OPENSEARCH_REST_API_PORT`: порт REST API OpenSearch (по умолчанию `9200`)
+
+    `OPENSEARCH_ADMIN_USERNAME`: имя администратора OpenSearch
+
+    `OPENSEARCH_ADMIN_PASSWORD`: пароль администратора OpenSearch.
+    В Compose задан слабый пароль по умолчанию `StrongPassword123!`.
+    Смените его для рабочей установки до первого запуска.
+
+    `OPENSEARCH_USE_SSL`: использовать TLS при подключении к OpenSearch (по умолчанию `true`)
+
+    `OPENSEARCH_VERIFY_CERTS`: проверять сертификат сервера OpenSearch
+
+    `OPENSEARCH_CA_CERTS`: пакет CA для проверки сертификата сервера
+
+    `OPENSEARCH_CLIENT_CERT`: клиентский сертификат для взаимного TLS
+
+    `OPENSEARCH_CLIENT_KEY`: клиентский ключ для взаимного TLS
+
+    `OPENSEARCH_AUTH_METHOD`: `basic` (по умолчанию) или `iam` (подпись AWS SigV4 для управляемых доменов)
+
+    `OPENSEARCH_AWS_REGION`: регион AWS управляемого домена OpenSearch (обязателен для `iam`)
+
+    `OPENSEARCH_AWS_SERVICE`: имя сервиса SigV4, `es` (по умолчанию) или `aoss` для OpenSearch Serverless
+
+    `USING_AWS_MANAGED_OPENSEARCH`: задайте `true` при использовании управляемого домена AWS OpenSearch
+
+    `DEFAULT_OPENSEARCH_CLIENT_TIMEOUT_S`: тайм-аут запроса клиента в секундах
+
+    `DEFAULT_OPENSEARCH_QUERY_TIMEOUT_S`: тайм-аут запроса в секундах
+
+    `OPENSEARCH_TEXT_ANALYZER`: анализатор текста для поиска по ключевым словам (по умолчанию `english`)
+
+    `OPENSEARCH_INDEX_NUM_SHARDS`: число первичных шардов на индекс
+
+    `OPENSEARCH_INDEX_NUM_REPLICAS`: число реплик на индекс
+
+    `PIT_KEEP_ALIVE`: время удержания point-in-time при сканировании индекса (по умолчанию `5m`)
+
+    `OPENSEARCH_PROFILING_DISABLED`: отключить профилирование запросов OpenSearch (по умолчанию `true`)
+
+    `OPENSEARCH_MATCH_HIGHLIGHTS_DISABLED`: отключить подсветку совпадений в результатах поиска (по умолчанию `true`)
+
+    `OPENSEARCH_EXPLAIN_ENABLED`:
+    возвращать разбивку оценки по каждому совпадению для отладки релевантности (большие затраты производительности)
+
+    `ONYX_SEARCH_UI_USES_OPENSEARCH_KEYWORD_SEARCH`: Только Enterprise Edition, в CE не действует.
+    Использовать поиск по ключевым словам OpenSearch для интерфейса поиска.
+  </Accordion>
+
+  <Accordion title="Конфигурация Celery">
+    `CELERY_RESULT_EXPIRES`: время истечения результатов в секундах
+
+    `CELERY_BROKER_POOL_LIMIT`: лимит пула соединений брокера
+
+    `CELERY_WORKER_LIGHT_CONCURRENCY`: параллелизм лёгкого рабочего процесса
+
+    `CELERY_WORKER_LIGHT_PREFETCH_MULTIPLIER`: множитель предвыборки лёгкого рабочего процесса
+
+    `CELERY_WORKER_DOCPROCESSING_CONCURRENCY`: параллелизм рабочего процесса обработки документов
+
+    `CELERY_WORKER_DOCFETCHING_CONCURRENCY`: параллелизм рабочего процесса получения документов
+
+    `CELERY_EXTERNAL_GROUP_SYNC_LOCK_TIMEOUT`: Только Enterprise Edition, в CE не действует.
+    TTL блокировки синхронизации внешних групп для каждого коннектора в секундах. По умолчанию `300`.
+
+    `CELERY_PERMISSIONS_SYNC_LOCK_TIMEOUT`: Только Enterprise Edition, в CE не действует.
+    TTL блокировки синхронизации прав документов для каждого коннектора в секундах. По умолчанию `3600`.
+
+    `CELERY_DOCUMENT_SYNC_BEAT_LOCK_TIMEOUT`: TTL блокировки синхронизации индекса документов в секундах.
+    По умолчанию `120`. Увеличьте,
+    если проход синхронизации прерывается с «no longer owned» или «Lock not owned on completion».
+  </Accordion>
+
+  <Accordion title="Ограничение частоты запросов">
+    <Info>
+
+      Эти ограничения применяются к конечным точкам аутентификации
+    </Info>
+
+    `RATE_LIMIT_WINDOW_SECONDS`: окно ограничения частоты в секундах
+
+    `RATE_LIMIT_MAX_REQUESTS`: максимум запросов за окно
+
+    `REQUEST_TIMEOUT_SECONDS`: тайм-аут запроса по умолчанию
+  </Accordion>
+
+  <Accordion title="Конфигурация индексации">
+    `INDEX_BATCH_SIZE`: размер пакета при индексации
+
+    `DISABLE_INDEX_UPDATE_ON_SWAP`: отключить обновление основного индекса при смене модели эмбеддинга
+
+    `ENABLE_MULTIPASS_INDEXING`: включить многопроходную индексацию для большей точности
+
+    `ENABLE_CONTEXTUAL_RAG`: включить контекстное извлечение
+
+    `SKIP_METADATA_IN_CHUNK`: пропускать метаданные во фрагментах
+
+    `INDEXING_SIZE_WARNING_THRESHOLD`: порог предупреждения о размере в байтах
+
+    `INDEXING_EMBEDDING_MODEL_NUM_THREADS`: потоки модели эмбеддинга
+
+    `CONTINUE_ON_CONNECTOR_FAILURE`: продолжать индексацию при сбоях коннекторов
+
+    `MAX_DOCUMENT_CHARS`: максимальное число символов документа
+
+    `MAX_FILE_SIZE_BYTES`: максимальный размер файла в байтах
+
+    `USE_DOCUMENT_SUMMARY`: использовать сводку документа для контекстного RAG
+
+    `USE_CHUNK_SUMMARY`: использовать сводку фрагмента для контекстного RAG
+  </Accordion>
+
+  <Accordion title="Конфигурация коннекторов">
+    <Note>
+
+      Большинство настроек ниже можно изменить в интерфейсе администратора.
+    </Note>
+
+    **Общие настройки коннекторов**
+
+    `ENABLED_CONNECTOR_TYPES`: список включённых типов коннекторов через запятую
+
+    `LEAVE_CONNECTOR_ACTIVE_ON_INITIALIZATION_FAILURE`: оставлять коннектор активным при сбое инициализации
+
+    **Коннектор Web**
+
+    `HTML_BASED_CONNECTOR_TRANSFORM_LINKS_STRATEGY`: стратегия преобразования ссылок
+
+    `PARSE_WITH_TRAFILATURA`: использовать Trafilatura для разбора HTML
+
+    **Коннектор Confluence**
+
+    `OAUTH_CONFLUENCE_CLOUD_CLIENT_ID`: ID клиента OAuth Confluence Cloud
+
+    `OAUTH_CONFLUENCE_CLOUD_CLIENT_SECRET`: секрет клиента OAuth Confluence Cloud
+
+    `CONFLUENCE_CONNECTOR_LABELS_TO_SKIP`: метки, пропускаемые при индексации
+
+    `CONFLUENCE_CONNECTOR_ATTACHMENT_SIZE_THRESHOLD`: порог размера вложения
+
+    `CONFLUENCE_CONNECTOR_ATTACHMENT_CHAR_COUNT_THRESHOLD`: порог числа символов вложения
+
+    `CONFLUENCE_CONNECTOR_USER_PROFILES_OVERRIDE`: JSON переопределения профилей пользователей
+
+    `CONFLUENCE_TIMEZONE_OFFSET`: смещение часового пояса для запросов CQL
+
+    **Коннектор Google Drive**
+
+    `OAUTH_GOOGLE_DRIVE_CLIENT_ID`: ID клиента OAuth Google Drive
+
+    `OAUTH_GOOGLE_DRIVE_CLIENT_SECRET`: секрет клиента OAuth Google Drive
+
+    `MAX_DRIVE_WORKERS`: максимум рабочих процессов Google Drive
+
+    `GOOGLE_DRIVE_CONNECTOR_SIZE_THRESHOLD`: порог размера файла для Google Drive
+
+    **Коннектор SharePoint**
+
+    `SHAREPOINT_CONNECTOR_SIZE_THRESHOLD`: порог размера файла для SharePoint
+
+    **Коннектор Jira**
+
+    `JIRA_CONNECTOR_LABELS_TO_SKIP`: метки, пропускаемые при индексации
+
+    `JIRA_CONNECTOR_MAX_TICKET_SIZE`: максимальный размер задачи в байтах
+
+    **Коннектор GitHub**
+
+    `GITHUB_CONNECTOR_BASE_URL`: базовый URL GitHub (для корпоративных установок)
+
+    **Коннектор GitLab**
+
+    `GITLAB_CONNECTOR_INCLUDE_CODE_FILES`: включать файлы кода в индексацию
+
+    **Коннектор Gong**
+
+    `GONG_CONNECTOR_START_TIME`: время начала для коннектора Gong
+
+    **Коннектор Notion**
+
+    `NOTION_CONNECTOR_DISABLE_RECURSIVE_PAGE_LOOKUP`: отключить рекурсивный поиск страниц
+
+    **Коннектор Zendesk**
+
+    `ZENDESK_CONNECTOR_SKIP_ARTICLE_LABELS`: метки статей, которые нужно пропускать
+
+    **Интеграция Egnyte**
+
+    `EGNYTE_CLIENT_ID`: ID клиента OAuth Egnyte
+
+    `EGNYTE_CLIENT_SECRET`: секрет клиента OAuth Egnyte
+
+    **Интеграция Linear**
+
+    `LINEAR_CLIENT_ID`: ID клиента OAuth Linear
+
+    `LINEAR_CLIENT_SECRET`: секрет клиента OAuth Linear
+  </Accordion>
+
+  <Accordion title="Конфигурация очистки">
+    `ALLOW_SIMULTANEOUS_PRUNING`: разрешить одновременные операции очистки
+
+    `MAX_PRUNING_DOCUMENT_RETRIEVAL_PER_MINUTE`: максимальная скорость получения документов во время очистки
+  </Accordion>
+
+  <Accordion title="Конфигурация журналирования">
+    `LOG_LEVEL`: подробность журналов во всех процессах Yahont. В `env.template` задано `info`.
+
+    `LOG_ONYX_MODEL_INTERACTIONS`: журналировать взаимодействия с моделью Yahont
+
+    `LOG_ENDPOINT_LATENCY`: журналировать задержку конечных точек
+
+    `LOG_POSTGRES_LATENCY`: журналировать задержку PostgreSQL
+
+    `LOG_POSTGRES_CONN_COUNTS`: журналировать число соединений PostgreSQL
+
+    `LOG_THIRD_PARTY_DEBUG`: сторонние библиотеки (LiteLLM, httpcore, botocore) ограничены уровнем `INFO`,
+    даже когда `LOG_LEVEL=debug`. Задайте `true`, чтобы они журналировали на уровне `LOG_LEVEL`.
+  </Accordion>
+
+  <Accordion title="Конфигурация обработки изображений">
+    `IMAGE_MODEL_NAME`: имя модели изображений
+
+    `AZURE_IMAGE_API_KEY`: ключ Azure OpenAI для генерации изображений. Если он задан,
+    инструмент генерации изображений считается доступным.
+
+    `IMAGE_SUMMARIZATION_SYSTEM_PROMPT`: системный промпт для суммаризации изображений
+
+    `IMAGE_SUMMARIZATION_USER_PROMPT`: пользовательский промпт для суммаризации изображений
+
+    `IMAGE_SUMMARIZATION_TIMEOUT`: тайм-аут в секундах для вызовов LLM суммаризации изображений во время индексации.
+    По умолчанию `300`.
+
+    `CONTEXTUAL_RAG_LLM_TIMEOUT`: тайм-аут в секундах для вызовов LLM сводки контекстного RAG во время индексации.
+    По умолчанию `180`.
+  </Accordion>
+
+  <Accordion title="Конфигурация файлового хранилища">
+    `FILE_STORE_BACKEND`: бэкенд файлового хранилища. Используйте `s3` (по умолчанию)
+    для встроенного объектного хранилища и другого S3-совместимого хранилища, `gcs` для Google Cloud Storage,
+    `azure` для Azure Blob Storage или `postgres`, чтобы хранить файлы в PostgreSQL.
+
+    **S3** (`FILE_STORE_BACKEND=s3`)
+
+    `S3_FILE_STORE_BUCKET_NAME`: имя бакета S3 для файлового хранилища
+
+    `S3_FILE_STORE_PREFIX`: префикс S3 для файлового хранилища
+
+    `S3_ENDPOINT_URL`: URL конечной точки S3 (для встроенного хранилища и другого S3-совместимого хранилища)
+
+    `S3_VERIFY_SSL`: проверять SSL для соединений с S3
+
+    `S3_AWS_ACCESS_KEY_ID`: ID ключа доступа AWS для S3
+
+    `S3_AWS_SECRET_ACCESS_KEY`: секретный ключ доступа AWS для S3
+
+    **Google Cloud Storage** (`FILE_STORE_BACKEND=gcs`)
+
+    `GCS_FILE_STORE_BUCKET_NAME`: имя бакета Cloud Storage для файлового хранилища. Обязательно.
+
+    `GCS_FILE_STORE_PREFIX`: префикс объектов для файлового хранилища. По умолчанию `onyx-files`.
+
+    `GCS_PROJECT_ID`: проект GCP бакета. Если не задан, Yahont получает проект из учётных данных.
+
+    `GCS_SERVICE_ACCOUNT_KEY_PATH`: путь к файлу ключа JSON сервисного аккаунта
+
+    `GCS_SERVICE_ACCOUNT_KEY_JSON`: ключ JSON сервисного аккаунта в виде строки
+
+    Yahont использует первые найденные учётные данные в таком порядке: `GCS_SERVICE_ACCOUNT_KEY_PATH`,
+    затем `GCS_SERVICE_ACCOUNT_KEY_JSON`, затем Application Default Credentials.
+    Application Default Credentials включают сервер метаданных Compute Engine и `gcloud auth application-default login`.
+    Идентичности нужны `roles/storage.objectAdmin` и `roles/storage.legacyBucketReader` для бакета,
+    потому что Yahont читает бакет при запуске.
+
+    **Azure Blob Storage** (`FILE_STORE_BACKEND=azure`)
+
+    `AZURE_FILE_STORE_CONTAINER_NAME`: имя контейнера blob для файлового хранилища
+
+    `AZURE_FILE_STORE_PREFIX`: префикс blob для файлового хранилища. По умолчанию `onyx-files`.
+
+    `AZURE_STORAGE_ACCOUNT_NAME`: имя учётной записи хранилища
+
+    `AZURE_STORAGE_ACCOUNT_URL`: URL конечной точки Blob. Если не задан,
+    Yahont использует `https://<account>.blob.core.windows.net`. Задайте его для Azurite или суверенных облаков.
+
+    `AZURE_STORAGE_CONNECTION_STRING`: строка подключения учётной записи хранилища
+
+    `AZURE_STORAGE_ACCOUNT_KEY`: ключ учётной записи хранилища
+
+    Yahont использует первые найденные учётные данные в таком порядке: `AZURE_STORAGE_CONNECTION_STRING`,
+    затем `AZURE_STORAGE_ACCOUNT_KEY`, затем `DefaultAzureCredential`.
+    `DefaultAzureCredential` включает управляемую идентичность и `az login`.
+  </Accordion>
+
+  <Accordion title="Телеметрия и аналитика">
+    `DISABLE_TELEMETRY`: отключить анонимную телеметрию. В Yahont CE шаблон `.env` задаёт `true`.
+    Значение `false` включает отправку сведений об использовании на сервер Yahont (`telemetry.yahont.ai`).
+  </Accordion>
+
+  <Accordion title="Конфигурация API">
+    `API_PREFIX`: используется для добавления базового пути ко всем маршрутам API. Задайте `/api`,
+    если вы запускаете Yahont за обратным прокси, который не умеет удалять префикс `/api` из запросов к `API server`.
+
+    `API_KEY_HASH_ROUNDS`: число раундов хэширования SHA-256 Crypt для ключей API. Допустимый диапазон:
+    от `1000` до `999999999`. Если значение не задано, используется значение по умолчанию библиотеки passlib.
+    Увеличение значения повышает безопасность, но может влиять на производительность.
+
+    `LITELLM_CUSTOM_ERROR_MESSAGE_MAPPINGS`: пользовательские сопоставления сообщений об ошибках (JSON)
+
+    `GEN_AI_MODEL_FALLBACK_MAX_TOKENS`: максимальный лимит токенов для запасной модели генеративного ИИ
+  </Accordion>
+
+  <Accordion title="Конфигурация Enterprise">
+    <Tip>
+
+      [Свяжитесь с нами](/deployment/miscellaneous/contact_us), чтобы включить функции Enterprise Edition!
+    </Tip>
+
+    `DATA_PLANE_SECRET`: Только Enterprise Edition, в CE не действует.
+    Секрет для безопасного взаимодействия плоскости управления и плоскости данных
+
+    `EXPECTED_API_KEY`: Только Enterprise Edition, в CE не действует.
+    Дополнительная проверка безопасности для API плоскости управления
+
+    `CONTROL_PLANE_API_BASE_URL`: Только Enterprise Edition, в CE не действует. Базовый URL API плоскости управления
+  </Accordion>
+
+  <Accordion title="Разработка и тестирование">
+    `DEV_MODE`: включить режим разработки
+
+    `INTEGRATION_TESTS_MODE`: включить режим интеграционных тестов
+  </Accordion>
+
+  <Accordion title="Конфигурация развёртывания">
+    `AWS_REGION_NAME`: имя региона AWS
+
+    `TARGET_AVAILABLE_TENANTS`: Только Enterprise Edition, в CE не действует.
+    Число заранее подготовленных тенантов для поддержания
+
+    `SYSTEM_RECURSION_LIMIT`: системный лимит рекурсии
+  </Accordion>
+</AccordionGroup>
+
+## Переменные окружения Enterprise Edition {#enterprise-edition-environment-variables}
+
+Enterprise Edition добавляет в Yahont дополнительные переменные окружения. В Yahont CE они не действуют.
+
+<AccordionGroup>
+  <Accordion title="ENV_SEED_CONFIGURATION">
+    Только Enterprise Edition, в CE не действует.
+
+    Эта переменная позволяет запускать ваш инстанс Yahont с предварительно настроенными параметрами,
+    которые сохраняются между перезапусками.
+
+    `ENV_SEED_CONFIGURATION` принимает строку JSON со следующими параметрами:
+    - `llms`: список конфигураций LLM (name, provider, api_key, api_base, api_version, custom_config, default_model_name, fast_default_model_name)
+    - `admin_user_emails`: список адресов электронной почты для автоматического назначения роли администратора
+    - `seeded_name`: заранее заданное имя вашего инстанса Yahont
+    - `seeded_logo_path`: путь к вашему логотипу в папке assets
+  </Accordion>
+</AccordionGroup>

@@ -1,0 +1,51 @@
+---
+title: "Bifrost"
+description: "Настройка Bifrost в качестве шлюза языковых моделей для Yahont"
+icon: "server"
+---
+
+import NavigateToAiModels from "/snippets/navigate-to-ai-models.mdx";
+import StandardAiModelConfigs from "/snippets/standard-ai-model-configs.mdx";
+
+## Руководство {#guide}
+
+Настройте Yahont на использование моделей, предоставляемых через [Bifrost](https://docs.getbifrost.ai/overview).
+
+<Note>
+  Yahont подключается к вашему шлюзу Bifrost, получая модели с его конечной точки `/v1/models`.
+  Bifrost может предоставлять модели нескольких производителей через единую конечную точку.
+</Note>
+
+<Steps>
+  <Step title="Настройте шлюз Bifrost">
+    Убедитесь, что ваше развёртывание Bifrost доступно с сервера Yahont.
+
+    Вам понадобится **базовый URL API** Bifrost.
+
+    Если для вашего развёртывания Bifrost нужна аутентификация, также создайте **API-ключ** Bifrost.
+  </Step>
+
+  <NavigateToAiModels />
+
+  <Step title="Настройте Bifrost">
+    Выберите **Bifrost** среди доступных поставщиков.
+
+    Задайте поставщику **отображаемое имя**.
+
+    Введите **базовый URL API** вашего шлюза Bifrost.
+
+    Если шлюзу нужна аутентификация, введите свой **API-ключ**.
+
+    Нажмите **Fetch Available Models**, чтобы загрузить языковые модели, которые сейчас предоставляет Bifrost.
+  </Step>
+
+  <Step title="Проверьте импортированные модели">
+    Yahont импортирует идентификаторы моделей, возвращённые Bifrost, и использует отображаемые имена,
+    возвращённые шлюзом, если они доступны.
+
+    Это полезно, когда ваш шлюз Bifrost предоставляет модели нескольких производителей, например Anthropic,
+    OpenAI и других.
+  </Step>
+
+  <StandardAiModelConfigs />
+</Steps>

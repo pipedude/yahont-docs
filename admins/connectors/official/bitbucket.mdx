@@ -1,0 +1,115 @@
+---
+title: "Bitbucket Connector"
+description: "Доступ к знаниям из ваших репозиториев Bitbucket (только Cloud)"
+---
+
+## Как это работает {#how-it-works}
+
+Коннектор Bitbucket индексирует все запросы на слияние (pull request) из указанного репозитория Bitbucket Cloud,
+проекта или всего рабочего пространства.
+
+- Он индексирует запросы на слияние в состояниях `OPEN`, `MERGED` и `DECLINED`, включая их заголовки и описания.
+- Он также фиксирует ключевые метаданные: автора, рецензентов, текущее состояние, время создания и обновления
+  и прямую ссылку на исходный запрос на слияние в Bitbucket.
+
+## Настройка {#setting-up}
+
+<Note>
+  Этот коннектор можно использовать только с Bitbucket Cloud.
+</Note>
+
+### Авторизация {#authorization}
+
+Коннектор Bitbucket использует для аутентификации API-токен.
+
+Чтобы создать API-токен:
+
+<Steps>
+  <Step title="Войдите в Bitbucket">
+    Войдите в свой аккаунт Bitbucket.
+  </Step>
+
+  <Step title="Откройте настройки аккаунта">
+    Нажмите значок шестерёнки **Settings** в правом верхнем углу верхней панели навигации.
+  </Step>
+
+  <Step title="Откройте настройки аккаунта Atlassian">
+    В разделе **Personal settings** выберите **Atlassian account settings**.
+  </Step>
+
+  <Step title="Перейдите на вкладку Security">
+    Выберите вкладку **Security** на верхней панели навигации.
+  </Step>
+
+  <Step title="Управление API-токенами">
+    Выберите **Create and manage API tokens**.
+  </Step>
+
+  <Step title="Создайте токен с областями">
+    Выберите **Create API token with scopes**.
+  </Step>
+
+  <Step title="Назовите токен">
+    Задайте API-токену имя и срок действия, обычно связанные с приложением, которое будет использовать токен,
+    и нажмите **Next**.
+  </Step>
+
+  <Step title="Выберите Bitbucket">
+    Выберите **Bitbucket** в качестве приложения и нажмите **Next**.
+  </Step>
+
+  <Step title="Выберите области">
+    Выберите области (разрешения), которые нужны API-токену, и нажмите **Next**.
+
+    - **Projects**: `read:project:bitbucket`
+    - **Repositories**: `read:repository:bitbucket`
+    - **Pull Requests**: `read:pullrequest:bitbucket`
+  </Step>
+
+  <Step title="Создайте токен">
+    Проверьте токен и нажмите кнопку *Create token*. На странице отобразится новый API-токен.
+  </Step>
+
+  <Step title="Сохраните токен">
+    Скопируйте созданный API-токен и сохраните его или вставьте в приложение, которому вы хотите дать доступ.
+  </Step>
+</Steps>
+
+<Note>
+  Токен показывается только один раз, и позже получить его нельзя.
+</Note>
+
+Актуальные инструкции смотрите в [официальной документации
+Bitbucket](https://support.atlassian.com/bitbucket-cloud/docs/create-an-api-token/).
+
+### Индексирование {#indexing}
+
+<Steps>
+  <Step title="Откройте коннектор Bitbucket">
+    Откройте панель администратора и выберите коннектор **Bitbucket**.
+  </Step>
+
+  <Step title="Создайте учётные данные">
+    Нажмите **Создать новые учётные данные** и укажите:
+
+    - **Название**: понятное название ваших учётных данных.
+    - **Email**: адрес электронной почты вашего аккаунта Bitbucket.
+    - **API-токен**: API-токен, созданный на предыдущем шаге.
+
+    ![BitbucketConnector](/assets/admins/connectors/bitbucket/BitbucketConnectorCred.png)
+  </Step>
+
+  <Step title="Настройте сведения о коннекторе">
+    Заполните сведения о коннекторе:
+
+    - **Название**: понятное название коннектора.
+    - **Workspace name**: значение `WORKSPACE_NAME` из вашего URL Bitbucket (`https://bitbucket.org/{WORKSPACE_NAME}/...`).
+    - **Repositories or Projects (необязательно)**:
+    список slug репозиториев или ключей проектов через запятую для индексации.
+
+    ![BitbucketConnector](/assets/admins/connectors/bitbucket/BitbucketConnector.png)
+  </Step>
+</Steps>
+
+Эта конфигурация проиндексирует все запросы на слияние из указанных репозиториев.
+Также можно настроить индексацию всех репозиториев проекта или всего рабочего пространства.

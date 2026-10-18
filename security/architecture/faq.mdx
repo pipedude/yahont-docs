@@ -1,0 +1,56 @@
+---
+title: "Вопросы и ответы"
+description: "Общие вопросы о безопасности Yahont"
+icon: "comments-question"
+---
+
+### Отправляются ли документы и запросы сторонним LLM? {#are-documents-and-queries-sent-to-third-party-llms}
+
+Да,
+однако можно настроить только выбранных вами поставщиков LLM или подключить Yahont к LLM с самостоятельным размещением.
+
+### Используются ли какие-либо данные для обучения моделей? {#is-any-data-used-for-model-training}
+
+Обучения и дообучения моделей не выполняется.
+
+### Где хранятся мои данные? {#where-is-my-data-stored}
+
+Место хранения данных зависит от выбранного варианта развёртывания. Подробнее см.
+на [странице о хранении данных](/security/architecture/data_storage).
+
+### Есть ли у Yahont доступ к моим данным? {#does-onyx-have-access-to-my-data}
+
+При самостоятельном размещении команда Yahont **не** получает данных вашей команды.
+Анонимная телеметрия в Yahont CE выключена. Если вы её включите, сведения об использовании получает Yahont (см.
+[Телеметрия](/security/architecture/data_flows#telemetry)).
+
+### Поддерживает ли приложение SSO (SAML, OIDC)? {#does-the-app-support-sso-saml-oidc-scim}
+
+SAML и OIDC поддерживаются в Community Edition и Enterprise Edition Yahont.
+
+### Какие стандарты шифрования использует Yahont? {#what-encryption-standards-does-onyx-use}
+
+Yahont Cloud использует AES-256-GCM для данных в состоянии покоя и TLS 1.3 для данных при передаче.
+При самостоятельном размещении за их настройку отвечает администратор, развёртывающий систему.
+
+### Как устроен процесс уведомления Yahont об инцидентах безопасности? {#what-is-onyxs-security-incident-notification-process}
+
+Об инцидентах безопасности клиентам сообщают в зависимости от серьёзности и влияния,
+с подробными отчётами об инцидентах и шагами по устранению.
+Пользователям Community Edition об инцидентах сообщают через наш Telegram-канал сообщества:
+[t.me/yahont_ai](https://t.me/yahont_ai).
+
+### Кэширует, индексирует или реплицирует ли поставщик внутренние документы? {#does-the-vendor-cache-index-or-replicate-internal-documents}
+
+Да, это индексирование необходимо для надёжного извлечения контекста,
+на котором строятся многие основные пользовательские сценарии.
+
+### Как часто проводятся тесты на проникновение? Доступны ли результаты? {#how-often-are-penetration-tests-performed-are-results-available}
+
+Мы не заявляем о регулярных независимых тестах на проникновение и не публикуем их результаты. Вопросы об этом:
+[support@yahont.ai](mailto:support@yahont.ai).
+
+### Каким стандартам соответствия отвечает Yahont? {#what-compliance-standards-does-onyx-meet}
+
+Требования законодательства РФ описаны на странице [Соответствие требованиям](/security/yahont_cloud/compliance).
+Вопросы о соответствии требованиям: [support@yahont.ai](mailto:support@yahont.ai).

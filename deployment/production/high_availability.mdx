@@ -1,0 +1,226 @@
+---
+title: "Высокая доступность и масштабирование"
+description: "Реплики, автомасштабирование, пробы, корректная остановка и долгие запросы для Yahont в Kubernetes"
+icon: "arrows-rotate"
+---
+
+<Note>
+  На этой странице описан Helm-чарт Yahont **0.8.32** или новее. В более ранних чартах нет проб готовности по умолчанию,
+  слива через preStop, `podDisruptionBudget` и `topologySpreadConstraints`, описанных здесь.
+</Note>
+
+Размеры ресурсов по размеру развёртывания см. в [руководстве по ресурсам](/deployment/getting_started/resourcing)
+и в [SIZING.md](https://github.com/onyx-dot-app/onyx/blob/main/deployment/helm/charts/onyx/SIZING.md) чарта.
+
+## Реплики {#replicas}
+
+Эти компоненты не хранят состояние. Каждого из них можно запускать в нескольких репликах:
+
+- `api` и `webserver`
+- `inferenceCapability` и `indexCapability` (серверы моделей)
+- Рабочие процессы `celery_worker_*`
+
+Оставьте `celery_beat.replicaCount` равным `1`. Это планировщик задач.
+
+Встроенные PostgreSQL, Redis и OpenSearch по умолчанию работают в одном поде каждый.
+Для высокодоступных зависимостей используйте управляемые сервисы. См.
+[Внешние сервисы](/deployment/production/external_services).
+
+## Автомасштабирование {#autoscaling}
+
+У каждого масштабируемого компонента есть блок `autoscaling`. По умолчанию чарт создаёт HorizontalPodAutoscaler.
+
+```yaml values.yaml
+api:
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+    # API memory stays near its request when idle, so a memory target keeps the HPA at maxReplicas.
+    targetMemoryUtilizationPercentage: null
+```
+
+Когда `autoscaling.enabled` равно `true`, чарт игнорирует `replicaCount`.
+
+### KEDA {#keda}
+
+Задайте `autoscaling.engine: keda`, чтобы вместо этого создавались ресурсы KEDA `ScaledObject`.
+Оператор KEDA нужно установить самостоятельно. Триггеры KEDA добавляются в `customTriggers`.
+
+В этом примере рабочие процессы обработки документов масштабируются по глубине очереди. Предполагается,
+что Prometheus собирает метрики рабочего процесса мониторинга Yahont, который экспортирует `onyx_queue_depth`.
+Задайте `monitoring.serviceMonitors.enabled: true`, если используете Prometheus Operator.
+
+```yaml values.yaml
+autoscaling:
+  engine: keda
+
+celery_worker_docprocessing:
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 10
+    # Remove the default CPU and memory triggers to scale on queue depth only.
+    targetCPUUtilizationPercentage: null
+    targetMemoryUtilizationPercentage: null
+    customTriggers:
+      - type: prometheus
+        metadata:
+          serverAddress: http://prometheus-operated.monitoring.svc:9090
+          query: max(onyx_queue_depth{queue="docprocessing"})
+          threshold: "20"  # Target queued tasks for each replica
+```
+
+## Пробы {#probes}
+
+| Компонент | Проба готовности по умолчанию | Пробы liveness и startup |
+| --- | --- | --- |
+| `api` | HTTP `GET /health` | Выключены. Их можно включить. |
+| `webserver` | Проверка TCP на HTTP-порту | Выключены. Их можно включить. |
+| `inferenceCapability` | HTTP `GET /api/health` | Выключены. Их можно включить. |
+| `indexCapability` | Проверка TCP на порту сервера | Выключены. Их можно включить. |
+
+Для каждого из этих компонентов:
+
+- `readinessProbe: {}` использует значение чарта по умолчанию.
+- `readinessProbe: null` удаляет пробу.
+- Полная спецификация пробы заменяет значение по умолчанию.
+
+Рабочие процессы Celery хранят свои пробы в `celery_shared`.
+
+### Миграции базы данных и пробы {#database-migrations-and-probes}
+
+<Warning>
+  API-сервер выполняет `alembic upgrade head` до начала обслуживания запросов.
+  Большая миграция может занять много минут. Проба liveness или startup, не пройденная во время миграции,
+  убивает под до её завершения.
+</Warning>
+
+Если вы включаете пробу startup, сделайте `periodSeconds` × `failureThreshold` больше самой длительной миграции:
+
+```yaml values.yaml
+api:
+  startupProbe:
+    httpGet:
+      path: /health
+      port: api-server-port
+    periodSeconds: 10
+    failureThreshold: 180  # 30 minutes
+  livenessProbe:
+    httpGet:
+      path: /health  # Never use /health/ready here
+      port: api-server-port
+    periodSeconds: 30
+    failureThreshold: 5
+```
+
+Проба готовности никогда не перезапускает под, поэтому во время миграций она безопасна.
+
+`helm upgrade --wait` ждёт, пока новые поды API станут готовы, то есть после завершения миграций.
+Задайте `--timeout` больше самой длительной миграции. Если вы используете `--atomic`,
+откат возвращает объекты Kubernetes, но не схему базы данных.
+
+Чтобы выполнять миграции отдельным шагом, задайте `api.runStartupMigrations: false`.
+Затем выполните `alembic upgrade head` из образа `onyxdotapp/onyx-backend` с той же конфигурацией и Secrets до
+развёртывания новых подов API.
+
+## Корректная остановка {#graceful-shutdown}
+
+API-сервер и веб-сервер ждут перед получением `SIGTERM`. Это даёт ingress время перестать отправлять им новые запросы.
+Затем API-сервер ждёт завершения текущих потоков чата до конца льготного периода.
+
+| Ключ | Значение `api` по умолчанию | Значение `webserver` по умолчанию |
+| --- | --- | --- |
+| `preStopSleepSeconds` | `15` | `15` |
+| `terminationGracePeriodSeconds` | `120` | `30` |
+
+- Ожидание входит в льготный период.
+- Ожидание preStop требует Kubernetes 1.30 или новее. В более старых кластерах чарт его не включает.
+- Если ваши чаты длятся дольше льготного периода, увеличьте `api.terminationGracePeriodSeconds`.
+
+## Бюджеты прерываний и распределение {#disruption-budgets-and-spreading}
+
+PodDisruptionBudget по умолчанию выключены. Задайте `podDisruptionBudget.enabled: true` для `api`, `webserver`,
+`inferenceCapability`, `indexCapability` или любого компонента `celery_worker_*`.
+
+- По умолчанию `maxUnavailable: 1`. Вместо этого можно задать `minAvailable`.
+- Чарт создаёт бюджет, только если у компонента больше одной реплики или `autoscaling.minReplicas`
+  больше единицы.
+- Чарт не отрисовывается с бюджетом, который блокирует любое вытеснение.
+
+`topologySpreadConstraints` доступны для `api`, `webserver`, `inferenceCapability` и `indexCapability`.
+
+```yaml values.yaml
+api:
+  replicaCount: 3
+  podDisruptionBudget:
+    enabled: true
+    maxUnavailable: 1
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app: api-server
+
+webserver:
+  replicaCount: 2
+  podDisruptionBudget:
+    enabled: true
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app: web-server
+```
+
+## Долгие запросы {#long-running-requests}
+
+Каждый поток чата удерживает один поток пула потоков API до своего завершения.
+Глубокое исследование и выполнение кода могут удерживать поток много минут. Когда заняты все потоки,
+новые запросы ждут в очереди.
+
+| Ключ | По умолчанию | Эффект |
+| --- | --- | --- |
+| `api.workers` | `1` | Рабочие процессы Uvicorn в каждом поде. У каждого процесса свой пул потоков. |
+| `api.threadpoolSize` | `0` (40 потоков) | Потоки в каждом рабочем процессе. Каждый поток использует реальные CPU и память. |
+| `api.limitConcurrency` | Пусто (без ограничения) | Максимум соединений на каждый рабочий процесс. Лишние запросы сразу получают HTTP `503` вместо очереди. |
+| `nginx.timeouts.read` и `.send` | `900` секунд | Встроенный NGINX останавливает потоки, длящиеся дольше этого значения. |
+
+### Готовность при заполненном пуле потоков {#readiness-on-a-full-threadpool}
+
+Эндпоинт `GET /health/ready` возвращает `503`, когда пул потоков заполнен 10 секунд. Затем под выходит из Service,
+пока потоки не освободятся.
+
+```yaml values.yaml
+api:
+  replicaCount: 3
+  readinessProbe:
+    httpGet:
+      path: /health/ready
+      port: api-server-port
+```
+
+- Используйте `/health/ready` только при нескольких репликах. Высокая нагрузка заполняет все реплики одновременно. С одной
+  репликой у Service не остаётся готовых подов.
+- Никогда не используйте `/health/ready` для пробы liveness. Он перезапускает поды при высокой нагрузке и вызывает простой.
+
+### Остановка чата {#stop-a-chat}
+
+Пользователи останавливают ответ кнопкой остановки.
+Клиенты API могут отправить `POST /api/chat/stop-chat-session/{chat_session_id}`.
+Yahont записывает сигнал остановки в кэш, и поток завершается при следующей проверке.
+Запрос остановки может принять любая реплика API.
+
+### Ограничения {#limits}
+
+- В Yahont нет контроля допуска между репликами. Каждый под ограничивает только собственные запросы.
+- В Yahont нет надёжной очереди для запросов чата. Запрос выполняется на поде, который его получил.
+  Если этот под останавливается, запрос останавливается.
+
+Чтобы обслуживать больше одновременных долгих запросов, добавьте реплики API или используйте HPA.
+Используйте `api.limitConcurrency`, чтобы быстро отклонять лишние запросы вместо постановки в очередь.

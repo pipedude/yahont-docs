@@ -1,0 +1,53 @@
+---
+title: "Google Vertex AI"
+description: "Настройка языковых моделей Google Vertex AI для использования с Yahont"
+icon: "google"
+---
+import NavigateToAiModels from "/snippets/navigate-to-ai-models.mdx";
+import StandardAiModelConfigs from "/snippets/standard-ai-model-configs.mdx";
+
+## Руководство {#guide}
+
+В этом руководстве описана настройка языковых моделей Google Vertex AI для использования с Yahont.
+
+<Note>
+  Google Vertex AI и Google AI Studio предоставляют одни и те же модели.
+  Однако у Vertex AI есть функции корпоративного уровня, которые могут пригодиться вашей организации.
+</Note>
+
+<Steps>
+  <Step title="Создайте сервисный аккаунт для Yahont">
+    Откройте [страницу сервисных аккаунтов Google Cloud
+    Console](https://console.cloud.google.com/iam-admin/serviceaccounts)
+
+    Выберите свой проект и нажмите **Создать сервисный аккаунт**.
+
+    Задайте сервисному аккаунту имя и описание.
+
+    На вкладке **Разрешения** предоставьте сервисному аккаунту роль **Agent Platform User**.
+
+    <img className="rounded-image" src="/assets/admins/ai_models/gcs_service_acc.png" alt="Страница сервисных аккаунтов Google Cloud Console"/>
+
+    <img className="rounded-image" src="/assets/admins/ai_models/gcs_service_acc_config.png" alt="Настройка сервисного аккаунта в Google Cloud Console"/>
+  </Step>
+
+  <Step title="Создайте новый ключ для сервисного аккаунта">
+    Нажмите на созданный сервисный аккаунт → **Ключи** → **Добавить ключ** → **Создать новый ключ**.
+
+    Выберите тип ключа **JSON** и нажмите **Создать**. Ключ будет автоматически скачан на ваш компьютер.
+  </Step>
+
+  <NavigateToAiModels />
+
+  <Step title="Настройте Google Vertex AI">
+    Выберите **Google Cloud Vertex AI** среди доступных поставщиков.
+
+    Задайте этой конфигурации **отображаемое имя**.
+
+    Загрузите свой ключ JSON в поле **Файл учётных данных**.
+
+    При необходимости укажите **местоположение**.
+  </Step>
+
+  <StandardAiModelConfigs />
+</Steps>

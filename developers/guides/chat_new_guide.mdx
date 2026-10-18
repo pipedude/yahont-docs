@@ -1,0 +1,182 @@
+---
+title: "Отправка сообщения в Yahont"
+description: "Программная отправка сообщений в Yahont"
+icon: "bolt"
+---
+
+<Note>
+  `/chat/send-message` и `/chat/send-message-simple-api` удалены. Используйте вместо них этот API.
+</Note>
+
+API `/chat/send-chat-message` используется для отправки сообщения в Yahont. Это тот же API,
+который фронтенд Yahont использует для отправки и получения сообщений.
+Можно получать потоковый ответ или полный ответ в виде строки.
+
+В этом руководстве объясняются все параметры, которые можно передать в API, и приведён пример кода.
+
+## Параметры запроса {#request-parameters}
+
+| Параметр | Описание |
+|-----------|-------------|
+| `message` | Сообщение пользователя, отправляемое агенту. |
+| `llm_override` | Передайте объект, чтобы переопределить настройки LLM по умолчанию для этого запроса. Если `None`, будет использовано поведение Yahont по умолчанию. <br/><br/>Можно передавать или не передавать любые из следующих полей: <br/>• `model_configuration_id` – точная конфигурация модели. Предпочтительнее полей с именами, так как отображаемые имена поставщиков не уникальны <br/>• `model_provider` <br/>• `model_version` <br/>• `temperature` <br/>• `display_name` – подпись модели в интерфейсе; если не задана, используется `model_version` <br/><br/>Если передать недопустимую конфигурацию (например, указать `claude-sonnet-4.5`, когда по умолчанию `model_provider` — OpenAI), запрос завершится ошибкой. |
+| `llm_overrides` | Два или три объекта `llm_override` для параллельного запуска (мультимодельный режим), по одному на модель. <br/><br/>**Требует `stream=true`.** Отправка нескольких элементов с `stream=false` завершается ошибкой `400 {"error_code": "INVALID_INPUT"}`. Список из одного элемента игнорируется — для обычного запроса с одной моделью используйте `llm_override`. |
+| `allowed_tool_ids` | Агенты создаются с набором действий, которые им разрешено вызывать. Этот набор можно дополнительно настроить для текущего взаимодействия с помощью этого параметра. Список действий и их ID см. в конечной точке [GET /tool](/developers/api_reference/actions/list_tools). Передайте пустой список, чтобы отключить все действия. Передайте `None`, чтобы разрешить все действия, настроенные для агента. |
+| `forced_tool_id` | Принудительно заставляет агента использовать конкретное действие для этого запроса. Перед итоговым ответом агент может выполнить и другие действия, но это он использует гарантированно. Оставьте пустым, чтобы агент сам решал, какие действия использовать. |
+| `file_descriptors` | Список файлов, прикладываемых к запросу. ID файлов можно получить через конечные точки [POST /user/projects/file/upload](/developers/api_reference/projects/upload_user_files) и [GET /user/projects/file/{file_id}](/developers/api_reference/projects/get_user_file). |
+| `internal_search_filters` | Фильтры для сужения результатов внутреннего поиска, используемых агентом. Все аргументы фильтров необязательны и их можно комбинировать: <br/><br/>• `source_type` – типы источников, например `web`, `slack`, `google_drive`, `confluence` <br/>• `document_set` – название наборов документов, в которых нужно искать <br/>• `created_at_range` / `updated_at_range` – включающее окно `{"start": ..., "end": ...}` в формате ISO 8601: `YYYY-MM-DDTHH:MM:SSZ`. Любую границу можно опустить, оставив эту сторону открытой; временные метки без часового пояса считаются UTC <br/>• `tags` – список объектов `{"tag_key": ..., "tag_value": ...}` <br/><br/>**Примечание:** `time_cutoff` по-прежнему принимается как устаревший псевдоним начала `updated_at_range`. |
+| `deep_research` | Включает режим глубокого исследования для этого запроса. <br/><br/>**Примечание:** этот режим потребляет значительно больше токенов, поэтому будьте осторожны при обращении к нему через API. |
+| `mcp_headers` | Заголовки, пересылаемые в вызовы инструментов MCP, выполняемые при ответе на это сообщение, например `{"Authorization": "Bearer <user_jwt>"}`. Используйте, чтобы передавать учётные данные конечного пользователя на серверы MCP, которым они нужны. |
+| `parent_message_id` | ID родительского сообщения в истории чата (первичный ключ предыдущего сообщения в дереве истории чата). Если не передан, новое сообщение считается следующим после последнего сообщения. <br/><br/>**Предупреждение:** если задать `None`, история чата сбрасывается, а новое сообщение считается первым в истории чата. |
+| `chat_session_id` | Чтобы продолжить существующий разговор, передайте ID сессии чата, в которую нужно отправить сообщение. Если оставить пустым, новая сессия чата будет создана согласно `chat_session_info`. |
+| `chat_session_info` | Сведения о сессии чата, которые будут использоваться для всех сообщений в сессии. Поля можно оставить пустыми, чтобы использовать значения по умолчанию. <br/><br/>• `persona_id` – ID агента для сессии чата <br/>• `project_id` – ID проекта, если чат должен быть ограничен проектом <br/>• `incognito` – начать сессию в режиме инкогнито. Если режим инкогнито недоступен пользователю, запрос отклоняется с ошибкой, а не молча превращается в обычный чат <br/>• `incognito_session_id` – ID сессии, уже использованный при загрузке файлов, чтобы новая сессия владела этими файлами. Игнорируется, если `incognito` не равно true |
+| `stream` | Если true, отвечает потоком SSE из отдельных пакетов (тот же набор, что используется в интерфейсе Yahont). Такие поля, как ответ, токены рассуждений и итеративные вызовы инструментов, нужно собирать из потоковых токенов. |
+| `include_citations` | Если true, ответы будут содержать цитаты источников, использованных для формирования ответа. |
+| `additional_context` | Строка с дополнительным контекстом, добавляемым в вызов LLM для этого запроса. Контекст передаётся модели, но **не сохраняется в базе данных** и не появится в истории чата.<br></br>Используйте, чтобы передавать временную информацию в рамках запроса (например, URL текущей страницы пользователя, метаданные сессии или любой контекст времени выполнения), не засоряя постоянную историю разговора.<br></br>Передайте `null` или опустите поле, чтобы не использовать дополнительный контекст. |
+
+## Формат ответа {#response-format}
+
+### Потоковый ответ {#streaming-response}
+
+Yahont возвращает в потоковом ответе пакеты разных типов в зависимости от поведения LLM.
+
+Полный список типов пакетов и их полей см.
+в
+[streaming_models.py](https://github.com/pipedude/yahont-ce/blob/main/backend/onyx/server/query_and_chat/streaming_models.py)
+на GitHub.
+
+```python expandable
+class StreamingType(Enum):
+    """Enum defining all streaming packet types. This is the single source of truth for type strings."""
+
+    SECTION_END = "section_end"
+    STOP = "stop"
+    TOP_LEVEL_BRANCHING = "top_level_branching"
+    ERROR = "error"
+    CHAT_HEARTBEAT = "chat_heartbeat"
+
+    MESSAGE_START = "message_start"
+    MESSAGE_DELTA = "message_delta"
+    SEARCH_TOOL_START = "search_tool_start"
+    SEARCH_TOOL_QUERIES_DELTA = "search_tool_queries_delta"
+    SEARCH_TOOL_FILTER_DELTA = "search_tool_filter_delta"
+    SEARCH_TOOL_DOCUMENTS_DELTA = "search_tool_documents_delta"
+    OPEN_URL_START = "open_url_start"
+    OPEN_URL_URLS = "open_url_urls"
+    OPEN_URL_DOCUMENTS = "open_url_documents"
+    IMAGE_GENERATION_START = "image_generation_start"
+    IMAGE_GENERATION_HEARTBEAT = "image_generation_heartbeat"
+    IMAGE_GENERATION_FINAL = "image_generation_final"
+    PYTHON_TOOL_START = "python_tool_start"
+    PYTHON_TOOL_DELTA = "python_tool_delta"
+    CUSTOM_TOOL_START = "custom_tool_start"
+    CUSTOM_TOOL_ARGS = "custom_tool_args"
+    CUSTOM_TOOL_DELTA = "custom_tool_delta"
+    FILE_READER_START = "file_reader_start"
+    FILE_READER_RESULT = "file_reader_result"
+    REASONING_START = "reasoning_start"
+    REASONING_DELTA = "reasoning_delta"
+    REASONING_DONE = "reasoning_done"
+    CITATION_INFO = "citation_info"
+    TOOL_CALL_DEBUG = "tool_call_debug"
+    TOOL_CALL_ARGUMENT_DELTA = "tool_call_argument_delta"
+
+    MEMORY_TOOL_START = "memory_tool_start"
+    MEMORY_TOOL_DELTA = "memory_tool_delta"
+    MEMORY_TOOL_NO_ACCESS = "memory_tool_no_access"
+
+    DEEP_RESEARCH_PLAN_START = "deep_research_plan_start"
+    DEEP_RESEARCH_PLAN_DELTA = "deep_research_plan_delta"
+    RESEARCH_AGENT_START = "research_agent_start"
+    INTERMEDIATE_REPORT_START = "intermediate_report_start"
+    INTERMEDIATE_REPORT_DELTA = "intermediate_report_delta"
+    INTERMEDIATE_REPORT_CITED_DOCS = "intermediate_report_cited_docs"
+
+    CODING_AGENT_START = "coding_agent_start"
+    CODING_AGENT_THINKING_DELTA = "coding_agent_thinking_delta"
+    CODING_AGENT_FINAL = "coding_agent_final"
+
+    BASH_TOOL_START = "bash_tool_start"
+    BASH_TOOL_DELTA = "bash_tool_delta"
+```
+
+### Непотоковый ответ {#non-streaming-response}
+
+```python
+class ChatFullResponse(BaseModel):
+    """Complete non-streaming response with all available data."""
+
+    # Core response fields
+    answer: str
+    answer_citationless: str
+    pre_answer_reasoning: str | None = None
+    tool_calls: list[ToolCallResponse] = []
+
+    # Documents & citations
+    top_documents: list[SearchDoc]
+    citation_info: list[CitationInfo]
+
+    # Metadata
+    message_id: int
+    chat_session_id: UUID | None = None
+    incognito: bool = False
+    error_msg: str | None = None
+```
+
+## Пример запроса {#sample-request}
+
+<CodeGroup>
+  ```python Python expandable
+  import requests
+
+  API_BASE_URL = "https://your-yahont-domain.com/api"
+  API_KEY = "YOUR_KEY_HERE"
+
+  headers = {
+      "Authorization": f"Bearer {API_KEY}",
+      "Content-Type": "application/json"
+  }
+
+  response = requests.post(
+      f"{API_BASE_URL}/chat/send-chat-message",
+      headers=headers,
+      json={
+          "message": "What is Yahont?",
+      }
+  )
+
+  data = response.json()
+  print("Answer:", data["answer"])
+  print("Message ID:", data["message_id"])
+  ```
+
+  ```bash Shell expandable
+  #!/bin/bash
+
+  API_BASE_URL="https://your-yahont-domain.com/api"
+  API_KEY="YOUR_KEY_HERE"
+
+  RESPONSE=$(curl -s -X POST "${API_BASE_URL}/chat/send-chat-message" \
+    -H "Authorization: Bearer ${API_KEY}" \
+    -H "Content-Type: application/json" \
+    -d '{
+      "message": "What is Yahont?"
+    }'
+  )
+
+  echo "Answer:" $(echo "$RESPONSE" | jq -r '.answer')
+  echo "Message ID:" $(echo "$RESPONSE" | jq -r '.message_id')
+  ```
+</CodeGroup>
+
+## Дальнейшие шаги {#next-steps}
+
+<CardGroup cols={2}>
+  <Card title="Руководство: использование Ingestion API" icon="upload" href="/developers/guides/index_files_ingestion_api">
+    Используйте лёгкий Ingestion API для индексирования документов
+  </Card>
+
+  <Card title="Руководство: создание коннектора" icon="link" href="/developers/guides/create_connector">
+    Узнайте, как создавать и настраивать коннекторы программно
+  </Card>
+</CardGroup>

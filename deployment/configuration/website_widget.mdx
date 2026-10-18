@@ -1,0 +1,244 @@
+---
+title: "Виджет для сайта"
+description: "Разместите чат-виджет Yahont на вашем сайте"
+icon: "window"
+---
+
+Виджет Yahont для сайта позволяет встроить чат на основе ИИ прямо на любой сайт.
+
+Возможности:
+
+- Лёгкий пакет ~100–150 КБ в сжатом виде (gzip)
+- Полностью настраиваемые цвета и брендинг
+- Адаптивный дизайн (всплывающее окно на компьютере, полный экран на мобильных устройствах)
+- Потоковые ответы в реальном времени по SSE
+- Сохранение сессии при перезагрузке страницы
+
+## Варианты развёртывания {#deployment-options}
+
+### Облачное развёртывание (рекомендуется) {#cloud-deployment-recommended}
+
+Для пользователей Yahont Cloud виджет отдаётся из CDN Yahont. Просто добавьте на сайт следующее:
+
+```html
+<!-- Load the widget -->
+<script type="module" src="https://cdn.yahont.ai/widget/1.1/dist/onyx-widget.js"></script>
+
+<!-- Configure and display -->
+<onyx-chat-widget
+  backend-url="https://cloud.yahont.ai/api"
+  api-key="your_api_key_here"
+  mode="launcher"
+>
+</onyx-chat-widget>
+```
+
+### Самостоятельное размещение {#self-hosted-deployment}
+
+Для инстансов Yahont с самостоятельным размещением виджет нужно собрать и разместить самостоятельно.
+
+<Steps>
+  <Step title="Клонируйте репозиторий">
+    Клонируйте [репозиторий Yahont](https://github.com/pipedude/yahont-ce) с GitHub.
+  </Step>
+
+  <Step title="Перейдите в каталог виджета">
+    ```bash
+    cd widget/
+    ```
+  </Step>
+
+  <Step title="Установите зависимости">
+    ```bash
+    npm install
+    ```
+  </Step>
+
+  <Step title="Получите ключ API виджета">
+    Откройте панель администратора Yahont и создайте новый ключ API специально для виджета.
+
+    <img className="rounded-image" src="/assets/deployment/widget_api_key.png" alt="Создание ключа API виджета в панели администратора Yahont"/>
+
+    <Warning>
+      Создайте **ключ API с ограниченными правами** только для чата.
+      Никогда не используйте ключи администратора или с полным доступом, так как ключ API будет виден в клиентском коде.
+    </Warning>
+  </Step>
+
+  <Step title="Настройте окружение (необязательно)">
+    Для сборок со встроенной конфигурацией создайте файл `.env`:
+
+    ```bash
+    cp .env.example .env
+    ```
+
+    Отредактируйте `.env` и задайте URL бэкенда и ключ API:
+
+    ```
+    VITE_WIDGET_BACKEND_URL=https://your-backend.com
+    VITE_WIDGET_API_KEY=your_api_key
+    ```
+  </Step>
+
+  <Step title="Соберите виджет">
+    Для **облачного варианта развёртывания** (конфигурация через атрибуты HTML):
+
+    ```bash
+    npm run build:cloud
+    ```
+
+    Для **развёртывания с самостоятельным размещением** (конфигурация встроена в пакет):
+
+    ```bash
+    npm run build:self-hosted
+    ```
+  </Step>
+
+  <Step title="Разверните пакет">
+    Загрузите `dist/onyx-widget.js` в ваш CDN или на веб-сервер.
+  </Step>
+</Steps>
+
+### Код для встраивания клиентами {#customer-embed-code}
+
+После развёртывания предоставьте клиентам код для встраивания:
+
+**Облачный вариант (атрибуты обязательны):**
+
+```html
+<script type="module" src="https://your-cdn.com/onyx-widget.js"></script>
+<onyx-chat-widget
+  backend-url="https://your-backend.com"
+  api-key="customer_api_key"
+  agent-name="Support"
+  logo="https://path-to-your-logo.com/"
+>
+</onyx-chat-widget>
+```
+
+**Самостоятельное размещение (конфигурация встроена):**
+
+```html
+<script type="module" src="https://your-cdn.com/onyx-widget.js"></script>
+<onyx-chat-widget
+  agent-name="Support"
+  logo="https://path-to-your-logo.com/"
+>
+</onyx-chat-widget>
+```
+
+## Справочник по конфигурации {#configuration-reference}
+
+### Обязательные атрибуты {#required-attributes}
+
+| Атрибут       | Тип    | Описание                             |
+| ------------- | ------ | ------------------------------------ |
+| `backend-url` | string | URL API вашего бэкенда Yahont         |
+| `api-key`     | string | Ключ API для аутентификации          |
+
+#### `backend-url` {#backend-url}
+
+URL API вашего бэкенда Yahont. Именно сюда виджет отправляет запросы чата.
+
+- **Yahont Cloud**: используйте `https://cloud.yahont.ai` или URL вашего тенанта
+- **Самостоятельное размещение**: используйте URL вашего инстанса Yahont (например, `https://yahont.yourcompany.com`)
+
+```html
+<!-- Onyx Cloud -->
+<onyx-chat-widget backend-url="https://cloud.yahont.ai/api" ...></onyx-chat-widget>
+
+<!-- Self-hosted -->
+<onyx-chat-widget backend-url="https://yahont.yourcompany.com" ...></onyx-chat-widget>
+```
+
+#### `api-key` {#api-key}
+
+Действующий ключ API Yahont для аутентификации запросов виджета. **Этот ключ виден в клиентском коде**,
+поэтому всегда используйте ключ с ограниченными правами.
+
+```html
+<onyx-chat-widget
+  backend-url="https://cloud.yahont.ai/api"
+  api-key="on_abc123xyz789"
+  ...
+></onyx-chat-widget>
+```
+
+<Note>
+  Для сборок с самостоятельным размещением и встроенной конфигурацией `backend-url` и `api-key` можно задать через
+  переменные окружения при сборке вместо атрибутов HTML.
+</Note>
+
+### Необязательные атрибуты {#optional-attributes}
+
+| Атрибут            | Тип    | По умолчанию  | Описание                                 |
+| ------------------ | ------ | ------------- | ---------------------------------------- |
+| `agent-id`         | number | `undefined`   | Конкретный агент/персонаж для использования |
+| `agent-name`       | string | `"Assistant"` | Отображаемое имя в заголовке             |
+| `logo`             | string | Логотип Yahont | URL пользовательского изображения логотипа |
+| `primary-color`    | string | `#1c1c1c`     | Основной цвет бренда (кнопки, акценты)   |
+| `background-color` | string | `#e9e9e9`     | Цвет фона виджета                        |
+| `text-color`       | string | `#000000bf`   | Цвет текста (чёрный с непрозрачностью 75 %) |
+| `mode`             | string | `"launcher"`  | Режим отображения: `"launcher"` или `"inline"` |
+| `include-citations`| boolean| `false`       | Показывать значки цитат со ссылками на исходные документы |
+
+#### `include-citations` {#include-citations}
+
+Когда включено, сообщения ассистента показывают кликабельные значки цитат под текстом ответа.
+Каждый значок показывает порядковый номер и название исходного документа и ведёт прямо на исходный документ.
+
+```html
+<onyx-chat-widget
+  backend-url="https://cloud.yahont.ai/api"
+  api-key="on_abc123"
+  include-citations="true"
+>
+</onyx-chat-widget>
+```
+
+<Warning>
+  **Учитывайте доступ к документам при включении цитат.** Виджет будет цитировать любые документы,
+  доступные настроенному агенту или ключу API. Если у агента есть доступ к приватным или внутренним документам,
+  ссылки цитат могут вести на ресурсы, которые конечным пользователям нельзя просматривать.
+
+  Чтобы не раскрывать ссылки на приватные документы,
+  либо ограничьте доступ агента к документам только публичными источниками,
+  либо отключите цитаты для публичных развёртываний виджета.
+</Warning>
+
+## Безопасность ключа API {#api-key-security}
+
+<Warning>
+  Ключ API виджета виден в клиентском коде. Всегда создавайте отдельный ключ API с:
+
+  - **Ограниченными правами** — только доступ к чату, без функций администратора
+  - **Ограничением частоты запросов** — чтобы предотвратить злоупотребления
+  - **Мониторингом** — отслеживайте использование и выявляйте аномалии
+</Warning>
+
+<Steps>
+  <Step title="Создайте ключ API специально для виджета">
+    В панели администратора Yahont создайте новый ключ API с минимальными правами.
+  </Step>
+
+  <Step title="Включите ограничение частоты запросов">
+    Настройте лимиты, подходящие для ожидаемого использования.
+  </Step>
+
+  <Step title="Отслеживайте использование">
+    Регулярно проверяйте использование ключа API на необычные закономерности.
+  </Step>
+</Steps>
+
+## Поддерживаемые браузеры {#browser-support}
+
+- Chrome/Edge 90+ (Chromium)
+- Firefox 90+
+- Safari 15+
+- Mobile Safari (iOS 15+)
+- Mobile Chrome (Android)
+
+<Info>
+  **Нужна помощь с настройкой?** Обратитесь к администратору Yahont по вопросам настройки ключа API или помощи с
+  развёртыванием.
+</Info>

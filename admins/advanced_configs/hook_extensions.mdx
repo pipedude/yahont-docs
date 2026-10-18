@@ -1,0 +1,723 @@
+---
+title: "Расширения-хуки"
+description: "Внедряйте собственную логику в конвейер Yahont на определённых этапах без изменения исходного кода"
+icon: "webhook"
+---
+
+<Note>
+  Расширения-хуки — функция [Enterprise Edition](/deployment/miscellaneous/enterprise_edition),
+  доступная только в **одноарендных** (single-tenant) развёртываниях.
+</Note>
+
+## Обзор {#overview}
+
+Расширения-хуки позволяют внедрять собственную логику в конвейер Yahont на определённых этапах — без изменения исходного
+кода Yahont. Вы предоставляете HTTP-эндпоинт; Yahont вызывает его в нужный момент,
+отправляет JSON-данные и использует ваш ответ, чтобы повлиять на дальнейший ход событий.
+
+## Основные понятия {#concepts}
+
+### Точки хуков {#hook-points}
+
+Точка хука — это определённый этап конвейера Yahont, в который можно внедрить собственную логику.
+Каждая точка хука определяет:
+
+- **Когда** она срабатывает в конвейере
+- **Какие данные** она отправляет на ваш эндпоинт
+- **Какой ответ** она ожидает
+- Тайм-аут и стратегию отказа по умолчанию
+
+Точки хуков создаются осознанно: после добавления точки хука Yahont обязуется сохранять структуру её данных,
+формат ответа и поведение — то есть они не изменятся несовместимым образом без надлежащего процесса объявления
+устаревшими. Из-за этого долгосрочного обязательства каждое предложение тщательно оценивается перед добавлением.
+
+### Хуки {#hooks}
+
+Хук связывает точку хука с вашим HTTPS-эндпоинтом. Когда точка хука срабатывает,
+Yahont отправляет POST-запрос на ваш эндпоинт и использует ваш ответ, чтобы продолжить, изменить или прервать конвейер.
+
+Для одной точки хука одновременно разрешён только один хук.
+
+## Как это работает {#how-it-works}
+
+<Steps>
+  <Step title="Yahont доходит до точки хука в конвейере">
+    Конвейер срабатывает на определённом этапе.
+  </Step>
+
+  <Step title="Yahont отправляет POST на ваш эндпоинт">
+    Если для этой точки настроен активный хук, Yahont отправляет JSON-данные на URL вашего эндпоинта.
+  </Step>
+
+  <Step title="Ваш эндпоинт отвечает">
+    Ваш эндпоинт обрабатывает данные и возвращает ответ в формате JSON.
+  </Step>
+
+  <Step title="Yahont продолжает работу">
+    Yahont использует ваш ответ, чтобы продолжить, изменить или прервать конвейер.
+  </Step>
+</Steps>
+
+Если ваш эндпоинт недоступен, не отвечает вовремя или возвращает некорректный ответ,
+Yahont следует настроенной вами **стратегии отказа**.
+
+## Добавление хука {#adding-a-hook}
+
+<Steps>
+  <Step title="Откройте «Расширения-хуки»">
+    Откройте **панель администратора** и выберите **Расширения-хуки**.
+  </Step>
+
+  <Step title="Подключите точку хука">
+    Найдите нужную точку хука и нажмите **Подключить**.
+  </Step>
+
+  <Step title="Заполните данные хука">
+    Заполните форму:
+
+    <img className="rounded-image" src="/assets/admins/advanced_configs/add_hook.png" alt="Форма добавления хука"/>
+
+    | Поле | Обязательно | Описание |
+    |---|---|---|
+    | Отображаемое имя | Да | Понятное название этого хука |
+    | Стратегия отказа | Нет | **Жёсткая** — прервать конвейер. **Мягкая** — записать в журнал и продолжить. По умолчанию используется стратегия, рекомендованная для точки хука |
+    | Тайм-аут | Нет | Сколько секунд ждать ответа вашего эндпоинта (1–600). По умолчанию используется тайм-аут, рекомендованный для точки хука |
+    | URL эндпоинта | Да | HTTPS-URL, на который Yahont отправит POST при срабатывании точки хука. Должен использовать HTTPS. |
+    | API-ключ | Нет | Если указан, Yahont отправляет его в заголовке `Authorization: Bearer <api_key>` в каждом запросе |
+  </Step>
+
+  <Step title="Подключите">
+    Нажмите **Подключить**. Перед сохранением Yahont проверяет ваш эндпоинт тестовым запросом.
+    В случае успеха хук появится в списке подключённых.
+  </Step>
+</Steps>
+
+## Управление хуком {#managing-a-hook}
+
+После подключения вы можете:
+
+- **Включить / отключить** — переключить, выполняется ли хук
+- **Изменить** — обновить название, URL эндпоинта, API-ключ, тайм-аут или стратегию отказа
+- **Удалить** — полностью удалить хук
+- **Просмотреть журналы** — изучить последние сбои выполнения для отладки
+
+## Состояние хука {#hook-health}
+
+Yahont отслеживает ваш эндпоинт после регистрации и подключения хука и отображает его текущее состояние.
+
+| Состояние | Значение |
+|---|---|
+| <img src="/assets/icons/check_circle.svg" width="16" style={{display:"inline", marginRight:"6px"}} />Подключён | Доступен, за последний час сбоев не было |
+| <img src="/assets/icons/alert_triangle.svg" width="16" style={{display:"inline", marginRight:"6px"}} />Ухудшено | Доступен, но за последний час были сбои |
+| <img src="/assets/icons/x_octagon.svg" width="16" style={{display:"inline", marginRight:"6px"}} />Соединение потеряно | Yahont не может связаться с вашим эндпоинтом |
+
+<img className="rounded-image" src="/assets/admins/advanced_configs/hook_card_connected.png" alt="Карточка подключённого хука"/>
+
+<img className="rounded-image" src="/assets/admins/advanced_configs/hook_one_hour_errors.png" alt="Ошибки хука за последний час"/>
+
+<img className="rounded-image" src="/assets/admins/advanced_configs/hook_card_connection_lost.png" alt="Потеряно соединение с хуком"/>
+
+Для помощи в отладке также показаны 10 последних сбоев за последние 30 дней.
+
+<img className="rounded-image" src="/assets/admins/advanced_configs/hook_thirty_days_errors.png" alt="Ошибки хука за последние 30 дней"/>
+
+---
+
+## Приём документов {#document-ingestion}
+
+Точка хука «Приём документов» позволяет перехватывать каждый документ до его попадания в конвейер индексации Yahont.
+Ваш эндпоинт получает полностью сформированный документ и может отфильтровать его,
+переписать содержимое или пропустить без изменений.
+
+Она срабатывает сразу после внутренней проверки Yahont и до начала конвейера индексации — частичных записей ещё не
+произошло.
+
+| Параметр | Значение |
+|---|---|
+| Тайм-аут по умолчанию | 30 секунд (настраивается) |
+| Стратегия отказа по умолчанию | Жёсткая (настраивается) |
+| При жёстком отказе | Документ не будет проиндексирован |
+
+### Входная схема {#input-schema}
+
+Yahont отправляет `POST`-запрос на ваш эндпоинт по одному разу для каждого документа со следующим телом JSON:
+
+```json
+{
+  "document_id": "string",
+  "title": "string | null",
+  "semantic_identifier": "string",
+  "source": "string",
+  "sections": [
+    {
+      "text": "string | null",
+      "link": "string | null",
+      "image_file_id": "string | null"
+    }
+  ],
+  "metadata": { "key": ["string"] },
+  "doc_updated_at": "string | null",
+  "primary_owners": [
+    { "display_name": "string | null", "email": "string | null" }
+  ],
+  "secondary_owners": [
+    { "display_name": "string | null", "email": "string | null" }
+  ]
+}
+```
+
+<Note>
+  Все входные поля передаются только для контекста.
+  Ваш эндпоинт может влиять на конвейер только через выходную схему — а именно поле `sections`.
+</Note>
+
+| Поле | Тип | Обязательно | Описание |
+|---|---|---|---|
+| `document_id` | string | Да | Уникальный идентификатор документа. |
+| `title` | string \| null | Да | Заголовок документа. |
+| `semantic_identifier` | string | Да | Понятный идентификатор для отображения (например, имя файла или заголовок страницы). |
+| `source` | string | Да | Тип источника коннектора. Полный список возможных значений смотрите в [`DocumentSource`](https://github.com/pipedude/yahont-ce/blob/main/backend/onyx/configs/constants.py) в исходном коде Yahont. |
+| `sections` | object[] | Да | Все разделы документа — и текстовые, и разделы с изображениями. |
+| `sections[].text` | string \| null | Да | Текстовое содержимое. Задан для текстовых разделов, `null` для разделов с изображениями. |
+| `sections[].link` | string \| null | Нет | Необязательный URL, связанный с этим разделом. |
+| `sections[].image_file_id` | string \| null | Нет | Непрозрачный идентификатор изображения. Задан для разделов с изображениями, `null` для текстовых разделов. Само изображение не передаётся — хуки могут менять порядок или удалять разделы с изображениями, но не могут читать или изменять изображение. |
+| `metadata` | object | Да | Метаданные «ключ — значение». Значения всегда `string[]`. Зависят от коннектора — см. ниже. |
+| `doc_updated_at` | string \| null | Да | Время последнего обновления в источнике в формате `YYYY-MM-DDTHH:MM:SS.ffffff+00:00` или `null`, если неизвестно. |
+| `primary_owners` | object[] \| null | Да | Основные владельцы документа или `null`, если нет данных. |
+| `primary_owners[].display_name` | string \| null | Нет | Понятное имя владельца. |
+| `primary_owners[].email` | string \| null | Нет | Адрес электронной почты владельца. |
+| `secondary_owners` | object[] \| null | Да | Вторичные владельцы документа или `null`, если нет данных. |
+| `secondary_owners[].display_name` | string \| null | Нет | Понятное имя владельца. |
+| `secondary_owners[].email` | string \| null | Нет | Адрес электронной почты владельца. |
+
+#### Ключи метаданных по коннекторам {#metadata-keys-by-connector}
+
+Набор ключей в `metadata` зависит от источника коннектора. Ниже несколько примеров:
+
+| Коннектор | Ключи |
+|---|---|
+| Confluence | `space`, `labels` |
+| Jira | `key`, `project`, `project_name`, `issuetype`, `status`, `priority`, `assignee`, `assignee_email`, `reporter`, `reporter_email`, `labels`, `created`, `updated`, `duedate`, `resolution`, `resolution_date`, `parent` |
+| File | Произвольные пользовательские теги. Собственные пары «ключ — значение» можно встроить прямо в файл с помощью блока `ONYX_METADATA` — подробности в [документации коннектора File](/admins/connectors/official/file). |
+
+**Пример**
+
+```json
+{
+  "document_id": "FILE_CONNECTOR__0376357d-6431-4082-b71a-9f83688f1f16",
+  "title": "Q4 2024 Refund Policy",
+  "semantic_identifier": "Q4 2024 Refund Policy",
+  "source": "confluence",
+  "sections": [
+    {
+      "text": "Our refund policy allows returns within 30 days...",
+      "link": "https://wiki.example.com/pages/123456",
+      "image_file_id": null
+    },
+    {
+      "text": null,
+      "link": null,
+      "image_file_id": "846d6333-1a2b-4c5d-8e9f-0a1b2c3d4e5f"
+    }
+  ],
+  "metadata": {
+    "space": ["HR"],
+    "labels": ["policy", "finance"]
+  },
+  "doc_updated_at": "2024-10-01T12:00:00.000000+00:00",
+  "primary_owners": [
+    { "display_name": "Alice Smith", "email": "alice@example.com" }
+  ],
+  "secondary_owners": null
+}
+```
+
+### Выходная схема {#output-schema}
+
+Успешный ответ вашего эндпоинта должен возвращать HTTP `200` и тело JSON:
+
+| Поле | Тип | Обязательно | Описание |
+|---|---|---|---|
+| `sections` | object[] \| null | Да | Разделы для индексации в той же схеме, что и входные `sections`. Итоговый порядок определяет хук. `null` или пустой список отбрасывает документ. |
+| `rejection_reason` | string \| null | Нет | Записывается в журнал, когда `sections` равно `null` или пусто. Если не указано, используется общее сообщение. |
+
+<AccordionGroup>
+  <Accordion title="Пример: пропустить без изменений">
+    ```json
+    {
+      "sections": [
+        {
+          "text": "Our refund policy allows returns within 30 days...",
+          "link": "https://wiki.example.com/pages/123456",
+          "image_file_id": null
+        },
+        {
+          "text": null,
+          "link": null,
+          "image_file_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        }
+      ],
+      "rejection_reason": null
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Пример: переписать содержимое (удаление персональных данных)">
+    ```json
+    {
+      "sections": [
+        { "text": "Our refund policy allows returns within 30 days. Contact [REDACTED] for details." }
+      ],
+      "rejection_reason": null
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Пример: отбросить документ">
+    ```json
+    {
+      "sections": null,
+      "rejection_reason": "Document contains restricted classification label."
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Аутентификация {#authentication}
+
+Если при регистрации хука вы настроили API-ключ, Yahont включает его в каждый запрос:
+
+```
+Authorization: Bearer <your-api-key>
+```
+
+### Пример для Lambda {#lambda-example}
+
+В качестве эндпоинта хука можно использовать [функцию AWS
+Lambda](https://docs.aws.amazon.com/lambda/latest/dg/getting-started.html),
+открыв её по HTTPS через [Lambda Function URL](https://docs.aws.amazon.com/lambda/latest/dg/lambda-urls.html).
+Это самый простой способ развернуть хук без управления сервером.
+
+Когда Yahont вызывает ваш эндпоинт, запрос приходит в виде события в стиле API Gateway.
+Ваш обработчик читает тело JSON из `event["body"]`,
+обрабатывает документ и возвращает ответ с `statusCode` и закодированным в JSON `body`.
+
+Если вы настроили для хука API-ключ, проверьте его по заголовку `Authorization` в событии,
+прежде чем выполнять обработку.
+
+<Accordion title="Пример Lambda (Python)">
+  ```python
+  import json
+  import logging
+  import os
+
+  logger = logging.getLogger()
+  logger.setLevel(logging.INFO)
+
+  # Set the HOOK_API_KEY environment variable in your Lambda configuration.
+  # If not set, API key validation is skipped.
+  API_KEY = os.environ.get("HOOK_API_KEY")
+
+  def lambda_handler(event, context):
+      # Validate API key if configured
+      if API_KEY:
+          auth = (event.get("headers") or {}).get("authorization", "")
+          if auth != f"Bearer {API_KEY}":
+              logger.warning("Unauthorized request — invalid or missing API key")
+              return {"statusCode": 401, "body": json.dumps({"error": "Unauthorized"})}
+
+      body = json.loads(event.get("body", "{}"))
+      source = body.get("source", "")
+      document_id = body.get("document_id", "")
+      sections = body.get("sections", [])
+
+      logger.info("Received document: id=%s source=%s sections=%d", document_id, source, len(sections))
+
+      # Reject documents from the file connector
+      if source == "file":
+          logger.info("Rejecting document %s — file connector documents are not allowed", document_id)
+          return {
+              "statusCode": 200,
+              "body": json.dumps({
+                  "sections": None,
+                  "rejection_reason": "File connector documents are not allowed.",
+              }),
+          }
+
+      logger.info("Passing through document %s", document_id)
+      return {
+          "statusCode": 200,
+          "body": json.dumps({"sections": sections}),
+      }
+  ```
+</Accordion>
+
+### Тестирование {#testing}
+
+Используйте `curl`, чтобы проверить Lambda Function URL до подключения его к Yahont.
+
+**Пропуск без изменений (источник не файловый):**
+
+```bash
+curl -X POST https://<your-function-url> \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <your-api-key>" \
+  -d '{
+    "document_id": "confluence::page::123456",
+    "title": "Q4 Refund Policy",
+    "semantic_identifier": "Q4 Refund Policy",
+    "source": "confluence",
+    "sections": [{"text": "Our refund policy allows returns within 30 days.", "link": null, "image_file_id": null}],
+    "metadata": {},
+    "doc_updated_at": null,
+    "primary_owners": null,
+    "secondary_owners": null
+  }'
+```
+
+**Отклонение (источник — файл):**
+
+```bash
+curl -X POST https://<your-function-url> \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <your-api-key>" \
+  -d '{
+    "document_id": "FILE_CONNECTOR__abc123",
+    "title": "Internal Doc",
+    "semantic_identifier": "Internal Doc",
+    "source": "file",
+    "sections": [{"text": "Some content.", "link": null, "image_file_id": null}],
+    "metadata": {},
+    "doc_updated_at": null,
+    "primary_owners": null,
+    "secondary_owners": null
+  }'
+```
+
+После подключения хука можно проверить его от начала до конца: добавьте коннектор File и загрузите документ.
+После синхронизации коннектора найдите содержимое этого документа в окне чата — если хук работает правильно,
+этого материала в результатах быть не должно, так как документы файлового коннектора отклоняются.
+
+<img className="rounded-image" src="/assets/admins/advanced_configs/document_ingestion_file_connector.png" alt="Коннектор File"/>
+
+<img className="rounded-image" src="/assets/admins/advanced_configs/document_ingestion_add_file.png" alt="Добавление файла"/>
+
+<img className="rounded-image" src="/assets/admins/advanced_configs/document_ingestion_test.png" alt="Проверка приёма документов — содержимое файла не найдено"/>
+
+---
+
+## Отправка документов {#document-push}
+
+Точка хука «Отправка документов» срабатывает после успешной индексации каждого документа. Используйте её,
+чтобы отправлять проиндексированное содержимое во внешнее хранилище, например в вики,
+хранилище данных или журнал аудита.
+
+В отличие от «Приёма документов» (который работает до индексации и может изменять или отбрасывать документы),
+этот хук срабатывает **после** записи документа в индекс.
+Тело ответа не используется — любой ответ `2xx` считается успешным.
+
+<Note>
+  «Отправка документов» срабатывает только для **публичных коннекторов** в **одноарендных** (single-tenant)
+  развёртываниях и только при **инкрементальной синхронизации** — она не срабатывает при первичной индексации или полной
+  переиндексации с самого начала.
+</Note>
+
+| Параметр | Значение |
+|---|---|
+| Тайм-аут по умолчанию | 30 секунд (настраивается) |
+| Стратегия отказа по умолчанию | Мягкая (настраивается) |
+| При мягком отказе | Отправка пропускается, индексация продолжается |
+| При жёстком отказе | Пакет индексации завершится с ошибкой |
+
+### Входная схема {#input-schema}
+
+Yahont отправляет `POST`-запрос на ваш эндпоинт по одному разу для каждого успешно проиндексированного документа со
+следующим телом JSON:
+
+```json
+{
+  "document_id": "string",
+  "title": "string | null",
+  "content": "string",
+  "source": "string",
+  "url": "string | null",
+  "doc_updated_at": "string | null",
+  "metadata": { "key": ["string"] }
+}
+```
+
+| Поле | Тип | Описание |
+|---|---|---|
+| `document_id` | string | Уникальный идентификатор документа. |
+| `title` | string \| null | Заголовок документа. |
+| `content` | string | Полное текстовое содержимое (все текстовые разделы, объединённые через пробел). |
+| `source` | string | Тип источника коннектора (например, `confluence`, `slack`, `google_drive`). Полный список смотрите в [`DocumentSource`](https://github.com/pipedude/yahont-ce/blob/main/backend/onyx/configs/constants.py) в исходном коде Yahont. |
+| `url` | string \| null | Канонический URL документа в источнике, если доступен. |
+| `doc_updated_at` | string \| null | Время последнего обновления в источнике в формате ISO 8601 UTC или `null`, если неизвестно. |
+| `metadata` | object | Метаданные «ключ — значение». Значения всегда `string[]`. |
+
+**Пример**
+
+```json
+{
+  "document_id": "confluence::page::789012",
+  "title": "Engineering Onboarding Guide",
+  "content": "Welcome to the engineering team. This guide covers...",
+  "source": "confluence",
+  "url": "https://wiki.example.com/pages/789012",
+  "doc_updated_at": "2025-03-15T09:30:00.000000+00:00",
+  "metadata": {
+    "space": ["Engineering"],
+    "labels": ["onboarding", "guide"]
+  }
+}
+```
+
+### Выходная схема {#output-schema}
+
+Тело ответа **не используется** — любой код состояния `2xx` считается успешным.
+Ваш эндпоинт может вернуть пустое тело или любой объект JSON.
+
+### Аутентификация {#authentication}
+
+Если при регистрации хука вы настроили API-ключ, Yahont включает его в каждый запрос:
+
+```
+Authorization: Bearer <your-api-key>
+```
+
+### Пример для Lambda {#lambda-example}
+
+В качестве эндпоинта хука можно использовать [функцию AWS
+Lambda](https://docs.aws.amazon.com/lambda/latest/dg/getting-started.html),
+открыв её по HTTPS через [Lambda Function URL](https://docs.aws.amazon.com/lambda/latest/dg/lambda-urls.html).
+
+<Accordion title="Пример Lambda (Python)">
+  ```python
+  import json
+  import logging
+  import os
+
+  logger = logging.getLogger()
+  logger.setLevel(logging.INFO)
+
+  API_KEY = os.environ.get("HOOK_API_KEY")
+
+  def lambda_handler(event, context):
+      if API_KEY:
+          auth = (event.get("headers") or {}).get("authorization", "")
+          if auth != f"Bearer {API_KEY}":
+              return {"statusCode": 401, "body": json.dumps({"error": "Unauthorized"})}
+
+      body = json.loads(event.get("body", "{}"))
+      logger.info("Received document: id=%s title=%s", body.get("document_id"), body.get("title"))
+
+      return {"statusCode": 200, "body": "{}"}
+  ```
+</Accordion>
+
+### Тестирование {#testing}
+
+Используйте `curl`, чтобы проверить ваш эндпоинт до подключения его к Yahont:
+
+```bash
+curl -X POST https://<your-function-url> \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <your-api-key>" \
+  -d '{
+    "document_id": "confluence::page::789012",
+    "title": "Engineering Onboarding Guide",
+    "content": "Welcome to the engineering team. This guide covers...",
+    "source": "confluence",
+    "url": "https://wiki.example.com/pages/789012",
+    "doc_updated_at": "2025-03-15T09:30:00.000000+00:00",
+    "metadata": { "space": ["Engineering"], "labels": ["onboarding"] }
+  }'
+```
+
+---
+
+## Обработка запросов {#query-processing}
+
+Точка хука «Обработка запросов» позволяет перехватывать каждый запрос пользователя до его попадания в конвейер Yahont.
+Ваш эндпоинт получает исходный запрос и сведения о пользователе и может переписать запрос,
+полностью отклонить его или пропустить без изменений.
+
+Она срабатывает сразу после отправки сообщения пользователем, до сохранения в базу данных и отправки в LLM.
+Это самая ранняя возможная точка в конвейере — побочных эффектов ещё не было.
+
+| Параметр | Значение |
+|---|---|
+| Тайм-аут по умолчанию | 5 секунд (настраивается) |
+| Стратегия отказа по умолчанию | Жёсткая (настраивается) |
+| При жёстком отказе | Запрос будет заблокирован, а пользователь увидит сообщение об ошибке |
+
+### Входная схема {#input-schema}
+
+Yahont отправляет `POST`-запрос на ваш эндпоинт со следующим телом JSON:
+
+```json
+{
+  "query": "What is our refund policy?",
+  "user_email": "alice@example.com",
+  "chat_session_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+| Поле | Тип | Обязательно | Описание |
+|---|---|---|---|
+| `query` | string | Да | Исходный запрос в точности так, как его ввёл пользователь. |
+| `user_email` | string \| null | Да | Адрес электронной почты пользователя, отправившего запрос, или `null`, если пользователь не аутентифицирован. |
+| `chat_session_id` | string | Да | UUID сессии чата. |
+
+### Выходная схема {#output-schema}
+
+Успешный ответ вашего эндпоинта должен возвращать HTTP `200` и тело JSON:
+
+| Поле | Тип | Обязательно | Описание |
+|---|---|---|---|
+| `query` | string \| null | Да | Запрос, который будет использоваться дальше. Установите `null` или пустую строку, чтобы отклонить запрос. |
+| `rejection_message` | string \| null | Нет | Сообщение, показываемое пользователю, когда `query` равен `null`. Если не указано, используется общее сообщение. |
+
+<AccordionGroup>
+  <Accordion title="Пример: пропустить без изменений">
+    ```json
+    {
+      "query": "What is our refund policy?",
+      "rejection_message": null
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Пример: переписать запрос">
+    ```json
+    {
+      "query": "What is the refund policy for enterprise customers?",
+      "rejection_message": null
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Пример: отклонить запрос">
+    ```json
+    {
+      "query": null,
+      "rejection_message": "This topic is restricted. Please contact your administrator."
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Аутентификация {#authentication}
+
+Если при регистрации хука вы настроили API-ключ, Yahont включает его в каждый запрос:
+
+```
+Authorization: Bearer <your-api-key>
+```
+
+### Пример для Lambda {#lambda-example}
+
+В качестве эндпоинта хука можно использовать [функцию AWS
+Lambda](https://docs.aws.amazon.com/lambda/latest/dg/getting-started.html),
+открыв её по HTTPS через [Lambda Function URL](https://docs.aws.amazon.com/lambda/latest/dg/lambda-urls.html).
+Это самый простой способ развернуть хук без управления сервером.
+
+Когда Yahont вызывает ваш эндпоинт, запрос приходит в виде события в стиле API Gateway.
+Ваш обработчик читает тело JSON из `event["body"]`,
+обрабатывает запрос и возвращает ответ с `statusCode` и закодированным в JSON `body`.
+
+Если вы настроили для хука API-ключ, проверьте его по заголовку `Authorization` в событии,
+прежде чем выполнять обработку.
+
+<Accordion title="Пример Lambda (Python)">
+  ```python
+  import json
+  import os
+
+  BLOCKED_KEYWORDS = ["ssn", "phone number"]
+
+  # Set the HOOK_API_KEY environment variable in your Lambda configuration.
+  # If not set, API key validation is skipped.
+  API_KEY = os.environ.get("HOOK_API_KEY")
+
+  def lambda_handler(event, context):
+      # Validate API key if configured
+      if API_KEY:
+          auth = (event.get("headers") or {}).get("authorization", "")
+          if auth != f"Bearer {API_KEY}":
+              return {"statusCode": 401, "body": json.dumps({"error": "Unauthorized"})}
+
+      body = json.loads(event.get("body", "{}"))
+      query = body.get("query", "")
+
+      # Reject queries containing blocked keywords
+      for keyword in BLOCKED_KEYWORDS:
+          if keyword.lower() in query.lower():
+              return {
+                  "statusCode": 200,
+                  "body": json.dumps({
+                      "query": None,
+                      "rejection_message": "Your query contains restricted terms. Please contact your administrator.",
+                  }),
+              }
+
+      return {
+          "statusCode": 200,
+          "body": json.dumps({"query": query}),
+      }
+  ```
+</Accordion>
+
+### Тестирование {#testing}
+
+Используйте `curl`, чтобы проверить Lambda Function URL до подключения его к Yahont.
+
+**Пропуск без изменений (нет заблокированных ключевых слов):**
+
+```bash
+curl -X POST https://<your-function-url> \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <your-api-key>" \
+  -d '{
+    "query": "What is our refund policy?",
+    "user_email": "alice@example.com",
+    "chat_session_id": "550e8400-e29b-41d4-a716-446655440000"
+  }'
+```
+
+**Отклонение (содержит заблокированное ключевое слово):**
+
+```bash
+curl -X POST https://<your-function-url> \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <your-api-key>" \
+  -d '{
+    "query": "What is the SSN format?",
+    "user_email": "alice@example.com",
+    "chat_session_id": "550e8400-e29b-41d4-a716-446655440000"
+  }'
+```
+
+После подключения хука логику также можно проверить прямо в окне чата Yahont.
+Попробуйте отправить запрос с заблокированным ключевым словом (например, «ssn» или «phone number»)
+— вы должны увидеть сообщение об отклонении вместо ответа.
+Запросы без заблокированных ключевых слов должны проходить как обычно.
+
+<img className="rounded-image" src="/assets/admins/advanced_configs/query_processing_test.png" alt="Проверка хука обработки запросов"/>
+
+---
+
+## Предложение новой точки хука {#suggesting-a-new-hook-point}
+
+Если вашему сценарию нужна точка внедрения в конвейер, которой пока нет, создайте issue на GitHub с описанием:
+
+- **Где** в конвейере нужно внедрить логику (например, после поиска, перед индексацией документа)
+- **Что получит ваш эндпоинт** — какой контекст ему нужен для работы
+- **Что вернёт ваш эндпоинт** — как Yahont должен изменить поведение на основе вашего ответа
+- **Сценарии использования** — какую проблему это решает; нужна ли такая точка другим клиентам
+
+Команда Yahont рассматривает предложения и реализует точки хуков, имеющие широкую применимость.
+После добавления точки хука Yahont обязуется сохранять структуру её данных,
+формат ответа и поведение — то есть они не изменятся несовместимым образом без надлежащего процесса объявления
+устаревшими. Из-за этого долгосрочного обязательства каждое предложение тщательно оценивается перед добавлением.

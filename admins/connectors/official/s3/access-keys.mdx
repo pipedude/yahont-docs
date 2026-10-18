@@ -1,0 +1,58 @@
+---
+title: "S3: ключи доступа"
+description: "Авторизация коннектора S3 с помощью ключей доступа AWS."
+---
+
+## Авторизация с ключами доступа AWS {#aws-access-keys-authorization}
+
+<Steps>
+  <Step title="Откройте консоль AWS">
+    Войдите в консоль управления AWS (AWS Management Console).
+  </Step>
+
+  <Step title="Откройте IAM">
+    Откройте панель IAM (Identity and Access Management).
+  </Step>
+
+  <Step title="Создайте пользователя">
+    На левой боковой панели нажмите «Users», затем «Create user».
+
+    <img className="rounded-image" src="/assets/admins/connectors/blob/s3/iam.png" alt="Панель AWS IAM с разделом Users для создания пользователя"/>
+  </Step>
+
+  <Step title="Задайте сведения о пользователе">
+    Задайте имя нового пользователя (например, «YahontS3Connector») и нажмите «Next».
+  </Step>
+
+  <Step title="Прикрепите политику">
+    Нажмите «Attach policies directly» и найдите «AmazonS3ReadOnlyAccess» или аналогичную политику с достаточными
+    правами. Выберите эту политику и нажмите «Next».
+  </Step>
+
+  <Step title="Создайте пользователя">
+    При необходимости добавьте теги, затем нажмите «Create user».
+  </Step>
+
+  <Step title="Создайте ключ доступа">
+    На странице пользователей нажмите на только что созданного пользователя.
+    В разделе сводки нажмите «Create access key» и выберите вариант использования «Third-party service».
+    Подтвердите предупреждение и продолжите.
+  </Step>
+
+  <Step title="Скопируйте ключи">
+    При желании задайте тег описания и нажмите «create access key». Сразу скопируйте Access Key ID и Secret Access Key;
+    секрет больше нельзя будет посмотреть.
+
+    <img className="rounded-image" src="/assets/admins/connectors/blob/s3/accesskeyspage.png" alt="Страница учётных данных безопасности AWS"/>
+  </Step>
+</Steps>
+
+### Ввод учётных данных в Yahont {#credential-entry-in-onyx}
+
+При настройке коннектора S3 в Yahont вы вводите учётные данные так:
+- **AWS Access Key ID**: вставьте Access Key ID, скопированный из AWS
+- **AWS Secret Access Key**: вставьте Secret Access Key, скопированный из AWS
+
+<img className="rounded-image" src="/assets/admins/connectors/blob/s3/onyx-access-key.png" alt="Настройка коннектора S3 в Yahont с полями Access Key ID и Secret"/>
+
+Получив ключи доступа AWS, перейдите к [шагам индексации в обзоре](./overview#indexing), чтобы настроить коннектор S3.

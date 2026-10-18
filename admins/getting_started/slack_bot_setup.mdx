@@ -1,0 +1,248 @@
+---
+title: "Бот для Slack"
+description: "Как настроить бота для Slack, подключённого к Yahont"
+icon: "slack"
+---
+
+import HowToUseYahontBot from "/snippets/how-to-use-yahontbot.mdx";
+
+## Обзор {#overview}
+
+Yahont можно подключить к вашему рабочему пространству Slack, чтобы он отвечал на вопросы как опытный коллега.
+
+Вы можете настроить YahontBot так,
+чтобы он отвечал на определённые типы сообщений в конкретных каналах и с использованием выбранных данных из вашего
+индекса.
+
+<img className="rounded-image" src="/assets/admins/slackbot/slackbot_response.png" alt="Бот Yahont для Slack"/>
+
+## Настройка {#setup}
+
+<Note>
+  Чтобы настроить бота для Slack, нужно быть администратором рабочего пространства Slack.
+</Note>
+
+<Steps>
+  <Step title="Создайте новое приложение Slack">
+    Откройте [панель приложений Slack](https://api.slack.com/apps) и нажмите **Create New App** → **From a manifest**.
+
+    Выберите рабочее пространство, которое хотите подключить к Yahont.
+  </Step>
+
+  <Step title="Используйте манифест YAML">
+    Откройте вкладку **YAML** и вставьте в поле следующий манифест:
+
+    ```yaml YAML Manifest expandable
+    display_information:
+      name: OnyxBot
+      description: I help answer questions in Slack!
+    features:
+      app_home:
+        home_tab_enabled: false
+        messages_tab_enabled: true
+        messages_tab_read_only_enabled: false
+      bot_user:
+        display_name: OnyxBot
+        always_online: true
+      slash_commands:
+        - command: /onyx
+          description: Get back a private answer!
+          usage_hint: Put your question here!
+          should_escape: false
+    oauth_config:
+      scopes:
+        bot:
+          - app_mentions:read
+          - channels:history
+          - channels:join
+          - channels:read
+          - chat:write
+          - commands
+          - groups:history
+          - groups:read
+          - im:history
+          - im:read
+          - mpim:history
+          - reactions:write
+          - reactions:read
+          - usergroups:read
+          - users:read.email
+          - users:read
+        user:
+          - channels:history
+          - channels:read
+          - groups:read
+          - im:read
+          - mpim:history
+          - mpim:read
+          - search:read
+    settings:
+      event_subscriptions:
+        bot_events:
+          - app_mention
+          - message.channels
+          - message.groups
+          - message.im
+          - message.mpim
+      interactivity:
+        is_enabled: true
+      org_deploy_enabled: false
+      socket_mode_enabled: true
+      token_rotation_enabled: false
+    ```
+
+    Нажмите **Create**, и вы перейдёте на страницу приложения.
+  </Step>
+
+  <Step title="Создайте токен приложения">
+    Прокрутите вниз до раздела **App-Level Tokens** и нажмите **Generate Token and Scopes**.
+
+    Задайте токену имя, добавьте область `connections:write` к токену уровня приложения и нажмите **Generate**.
+    Сохраните этот токен на потом.
+
+    <Tip>
+      Название, описание и значок бота для Slack можно изменить в разделе **Display Information**.
+    </Tip>
+
+    <img className="rounded-image" src="/assets/admins/slackbot/slackbot_app_token.png" alt="Токен приложения бота Yahont для Slack"/>
+  </Step>
+
+  <Step title="Установите приложение Slack">
+    Откройте вкладку **OAuth & Permissions**, нажмите **Install to Workspace** и следуйте инструкциям,
+    чтобы установить приложение.
+
+    Скопируйте **Bot User OAuth Token** и **User OAuth Token** (рекомендуется) и сохраните их на потом.
+
+    <Note>
+      Yahont пока не поддерживает ротацию токенов.
+    </Note>
+
+    <img className="rounded-image" src="/assets/admins/slackbot/slackbot_bot_token.png" alt="Токен бота Yahont для Slack"/>
+  </Step>
+
+  <Step title="Настройте Yahont для бота Slack">
+    Откройте панель администратора Yahont и выберите вкладку **Боты Slack**.
+
+    Введите **Bot Token**, **App Token** и **User Token** (рекомендуется) и нажмите **Создать!**
+
+    <img className="rounded-image" src="/assets/admins/slackbot/slackbot_onyx_setup.png" alt="Настройка Yahont для бота Slack"/>
+  </Step>
+
+  <Step title="Настройте поведение бота Slack">
+    После создания бота Slack можно настроить его общее поведение в разделе **Конфигурация по умолчанию**.
+
+    Также можно задать поведение для отдельных каналов в разделе **Конфигурации каналов**.
+
+    <img className="rounded-image" src="/assets/admins/slackbot/slackbot_config.png" alt="Настройка бота Yahont для Slack"/>
+  </Step>
+</Steps>
+
+<HowToUseYahontBot />
+
+## Расширенная настройка {#advanced-configuration}
+
+Есть набор расширенных параметров, доступных через переменные окружения,
+которые управляют поведением вашего бота для Slack.
+
+Полный список параметров можно найти [в репозитории Yahont на
+GitHub](https://github.com/pipedude/yahont-ce/blob/main/backend/onyx/configs/onyxbot_configs.py).
+
+<Warning>
+  Эти параметры требуются редко и должны использоваться с осторожностью.
+</Warning>
+
+<AccordionGroup>
+  <Accordion title="ONYX_BOT_NUM_RETRIES">
+    Количество повторных попыток генерации ответа до сбоя.
+
+    Значение по умолчанию: `5 (int)`
+  </Accordion>
+
+  <Accordion title="ONYX_BOT_NUM_DOCS_TO_DISPLAY">
+    Количество документов, показываемых в разделе «Справочные документы».
+
+    Значение по умолчанию: `5 (int)`
+  </Accordion>
+
+  <Accordion title="ONYX_BOT_DISABLE_DOCS_ONLY_ANSWER">
+    Отключить ответы, в которых показываются только «Справочные документы», когда LLM не может ответить.
+
+    Значение по умолчанию: `false (bool)`
+  </Accordion>
+
+  <Accordion title="ONYX_BOT_REACT_EMOJI">
+    Эмодзи-реакция, показываемая, пока Yahont обрабатывает сообщение.
+
+    Значение по умолчанию: `eyes (str)`
+  </Accordion>
+
+  <Accordion title="ONYX_BOT_FOLLOWUP_EMOJI">
+    Эмодзи, предлагающее, что пользователю может понадобиться дополнительная помощь.
+
+    Значение по умолчанию: `sos (str)`
+  </Accordion>
+
+  <Accordion title="ONYX_BOT_FEEDBACK_VISIBILITY">
+    Видимость отзывов об ответах ИИ, отправленных YahontBot. Варианты: `private` (только нажавшему пользователю),
+    `anonymous` (публично, но анонимно), `public` (публично с именем пользователя).
+
+    Значение по умолчанию: `private (str)`
+  </Accordion>
+
+  <Accordion title="NOTIFY_SLACKBOT_NO_ANSWER">
+    Если включено, YahontBot отправляет короткое сообщение с извинением, когда не может найти ответ,
+    чтобы пользователи не оставались в неведении.
+
+    Значение по умолчанию: `false (bool)`
+  </Accordion>
+
+  <Accordion title="ONYX_BOT_DISPLAY_ERROR_MSGS">
+    Показывать краткие пояснения ошибок, когда при ответе на вопрос что-то идёт не так (полезно для отладки).
+
+    Значение по умолчанию: `false (bool)`
+  </Accordion>
+
+  <Accordion title="ONYX_BOT_RESPOND_EVERY_CHANNEL">
+    По умолчанию отвечать во всех каналах, а не только в тех, что настроены в интерфейсе.
+
+    Значение по умолчанию: `false (bool)`
+  </Accordion>
+
+  <Accordion title="ONYX_BOT_MAX_QPM">
+    Максимальное число вопросов в минуту, на которые может отвечать бот.
+    Значение `0` или отсутствие значения означает отсутствие ограничения.
+
+    Значение по умолчанию: `uncapped (int)`
+  </Accordion>
+
+  <Accordion title="ONYX_BOT_MAX_WAIT_TIME">
+    Максимальное время в секундах, которое вопрос ждёт в очереди до тайм-аута.
+
+    Значение по умолчанию: `180 (seconds; 3 minutes)`
+  </Accordion>
+
+  <Accordion title="ONYX_BOT_FEEDBACK_REMINDER">
+    Через сколько минут отправляется личное напоминание с просьбой оставить отзыв об ответе.
+    Значение `0` отключает напоминание.
+
+    Значение по умолчанию: `0 (disabled; 0 minutes)`
+  </Accordion>
+
+  <Accordion title="ONYX_BOT_REPHRASE_MESSAGE">
+    Переформулировать сообщения пользователей Slack перед отправкой в LLM (может улучшить понятность для модели).
+
+    Значение по умолчанию: `false (bool)`
+  </Accordion>
+
+  <Accordion title="ONYX_BOT_RESPONSE_LIMIT_PER_TIME_PERIOD">
+    Количество ответов, которые YahontBot может отправить за временное окно. Значение `0` отключает лимит.
+
+    Значение по умолчанию: `5000 (int)`
+  </Accordion>
+
+  <Accordion title="ONYX_BOT_RESPONSE_LIMIT_TIME_PERIOD_SECONDS">
+    Длина окна лимита ответов в секундах.
+
+    Значение по умолчанию: `86400 (seconds; 24 hours)`
+  </Accordion>
+</AccordionGroup>

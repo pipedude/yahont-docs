@@ -1,0 +1,34 @@
+---
+title: "OpenRouter"
+description: "Использование OpenRouter с Yahont"
+icon: "robot"
+---
+
+import NavigateToAiModels from "/snippets/navigate-to-ai-models.mdx";
+import StandardAiModelConfigs from "/snippets/standard-ai-model-configs.mdx";
+
+## Руководство {#guide}
+
+Настройте Yahont на использование моделей, работающих в [OpenRouter](https://openrouter.ai/).
+
+<Steps>
+  <Step title="Настройте OpenRouter и разверните модели">
+    Войдите в свой аккаунт OpenRouter и создайте новый API-ключ.
+  </Step>
+
+  <NavigateToAiModels />
+
+  <Step title="Настройте OpenRouter">
+    Выберите **OpenRouter** среди доступных поставщиков.
+
+    Задайте поставщику **отображаемое имя**.
+
+    Введите свой **API-ключ** OpenRouter.
+
+    Нажмите кнопку **Fetch Available Models**, чтобы увидеть модели, которые сейчас доступны в OpenRouter.
+
+    <img className="rounded-image" src="/assets/admins/ai_models/openrouter_config.png" alt="Настройка поставщика OpenRouter"/>
+  </Step>
+
+  <StandardAiModelConfigs />
+</Steps>

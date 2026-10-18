@@ -1,0 +1,48 @@
+---
+title: "LiteLLM Proxy"
+description: "Настройка LiteLLM Proxy в качестве шлюза языковых моделей для Yahont"
+icon: "server"
+---
+
+import NavigateToAiModels from "/snippets/navigate-to-ai-models.mdx";
+import StandardAiModelConfigs from "/snippets/standard-ai-model-configs.mdx";
+
+## Руководство {#guide}
+
+Настройте Yahont на использование моделей, предоставляемых вашим сервером LiteLLM Proxy.
+
+<Note>
+  Yahont читает доступные модели с конечной точки LiteLLM Proxy `/v1/models`. Это хороший вариант,
+  когда нужен один шлюз перед несколькими поставщиками или бэкендами с самостоятельным размещением.
+</Note>
+
+<Steps>
+  <Step title="Настройте LiteLLM Proxy">
+    Разверните LiteLLM Proxy и убедитесь, что он доступен с сервера Yahont.
+
+    Вам понадобятся **базовый URL API** и **API-ключ** LiteLLM Proxy.
+
+    Локальное значение по умолчанию обычно — `http://localhost:4000`.
+  </Step>
+
+  <NavigateToAiModels />
+
+  <Step title="Настройте LiteLLM Proxy">
+    Выберите **LiteLLM Proxy** среди доступных поставщиков.
+
+    Задайте поставщику **отображаемое имя**.
+
+    Введите **базовый URL API** и **API-ключ** прокси.
+
+    Нажмите **Fetch Available Models**, чтобы загрузить модели, которые сейчас предоставляет ваш инстанс LiteLLM Proxy.
+  </Step>
+
+  <Step title="Проверьте импортированные модели">
+    Yahont сохраняет идентификаторы моделей, возвращённые LiteLLM Proxy,
+    и делает эти модели доступными вашим пользователям.
+
+    Это полезно, когда LiteLLM направляет запросы нескольким поставщикам через единый шлюз.
+  </Step>
+
+  <StandardAiModelConfigs />
+</Steps>

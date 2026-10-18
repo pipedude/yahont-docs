@@ -1,0 +1,61 @@
+---
+title: "GitLab"
+description: "Индексирование репозиториев и задач из GitLab"
+---
+
+## Как это работает {#how-it-works}
+
+Коннектор GitLab получает все запросы на слияние (Merge Requests) и задачи (Issues) в указанном репозитории.
+- Он индексирует как открытые, так и закрытые запросы на слияние, включая заголовок и описание.
+- Он индексирует задачи (и инциденты) вместе с комментариями, как открытые, так и закрытые.
+- Включает некоторые другие метаданные, такие как URL, автор и т. д.
+
+## Настройка {#setting-up}
+
+### Авторизация {#authorization}
+
+<Steps>
+  <Step title="Используйте токен доступа GitLab">
+    Этот коннектор использует токен доступа GitLab.
+  </Step>
+
+  <Step title="Создайте персональный токен доступа">
+    Войдите в GitLab. На левой боковой панели выберите свой аватар. Выберите **Edit profile**.
+    Выберите **Add new token**.
+
+    <img className="rounded-image" src="/assets/admins/connectors/gitlab/GitlabConnectorAuth.gif" alt="Создание персонального токена доступа GitLab с нужными областями"/>
+  </Step>
+
+  <Step title="Задайте параметры токена">
+    Введите имя и срок действия токена.
+    - Токен истекает в эту дату в полночь UTC.
+    - Если срок действия не указать,
+    он автоматически устанавливается на 365 дней позже текущей даты.
+    - По умолчанию эта дата может быть не позже чем через 365 дней от текущей даты.
+  </Step>
+
+  <Step title="Выберите области и создайте токен">
+    Выберите нужные области,
+    подробности
+    [здесь](https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html#personal-access-token-scopes).
+    Затем выберите **Create personal access token**.
+  </Step>
+</Steps>
+
+### Индексирование {#indexing}
+
+<Steps>
+  <Step title="Откройте коннектор GitLab">
+    Откройте панель администратора и выберите коннектор **GitLab**
+  </Step>
+
+  <Step title="Подтвердите URL GitLab">
+    Если вы используете GitLab Cloud, а не самостоятельное размещение, оставьте URL GitLab по умолчанию
+  </Step>
+
+  <Step title="Настройте проект">
+    Для проекта с URL вида «https://gitlab.com/onyx-ai/onyx» настройте его так:
+  </Step>
+</Steps>
+
+<img className="rounded-image" src="/assets/admins/connectors/gitlab/GitlabConnector.png" alt="Пример настройки проекта в коннекторе GitLab Yahont"/>

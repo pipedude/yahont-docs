@@ -1,0 +1,423 @@
+---
+title: "Основные понятия"
+description: "Основные понятия и терминология для работы с API Yahont"
+icon: "lightbulb"
+---
+
+import BuiltInActionsTable from '/snippets/built-in-actions-table.mdx';
+import AgentsPersonasAssistantsNote from '/snippets/agents-personas-assistants-note.mdx';
+
+## Действия и MCP {#actions-mcp}
+
+<AccordionGroup>
+  <Accordion title="Действия" icon="wrench">
+    Действия (в бэкенде их также называют инструментами) — это функции,
+    которые ваши агенты могут выполнять для взаимодействия с внешними системами и сервисами.
+    Они расширяют возможности ваших агентов за пределы языковой модели.
+
+    Встроенные действия:
+    <BuiltInActionsTable />
+
+    Пользовательские действия:
+    - **Интеграции API**: подключение к внешним REST API
+    - **Операции с базами данных**: запросы и обновление баз данных
+    - **Автоматизация рабочих процессов**: запуск бизнес-процессов
+    - **Операции с файлами**: чтение, запись и обработка файлов
+
+    Собственные пользовательские действия можно определить в панели администратора с помощью спецификации OpenAPI.
+  </Accordion>
+
+  <Accordion title="MCP" icon="handshake">
+    Model Context Protocol (MCP) — открытый стандарт,
+    который позволяет ИИ-ассистентам безопасно получать доступ к внешним источникам данных и инструментам.
+    Yahont можно настроить как клиент MCP, чтобы управляемо взаимодействовать с внешними системами, базами данных и API.
+
+    Ключевые возможности MCP:
+    - **Доступ к внешним данным**: подключение к базам данных, API и файловым системам
+    - **Аутентификация**: сквозная передача OAuth для безопасного доступа к вашему MCP-серверу.
+  </Accordion>
+
+  <Accordion title="(Расширенное) Пользовательские встроенные действия" icon="wrench">
+    Иногда нужно больше контроля над действием, чем позволяет пользовательское действие.
+    Поскольку Yahont — проект с открытым исходным кодом, вы можете расширить встроенные действия по своему усмотрению!
+
+    Шаблоны встроенных действий находятся в `backend/onyx/tools/tool_implementations` в [репозитории
+    Yahont](https://github.com/pipedude/yahont-ce).
+
+    <Warning>
+
+      Расширение кодовой базы не рекомендуется большинству пользователей. Прежде чем начать,
+      обратитесь к нам за поддержкой в [Telegram](https://t.me/yahont_ai)!
+    </Warning>
+  </Accordion>
+</AccordionGroup>
+
+## Агенты {#agents}
+
+<AccordionGroup>
+  <Accordion title="Агенты" icon="user">
+    Агенты — это ИИ-ассистенты с пользовательскими инструкциями, действиями и доступом к данным,
+    расширяющие возможности базовой LLM.
+
+    <AgentsPersonasAssistantsNote />
+
+    **Встроенные агенты:**
+    - `id: 0` Search Agent — использует инструмент поиска, чтобы отвечать на вопросы по вашей базе знаний
+    - `id: -1` General Agent — базовый чат без инструментов (обычный чат с LLM)
+    - `id: -2` Paraphrase Agent — использует инструмент поиска и цитирует точные фрагменты из источников
+    - `id: -3` Art Agent — создаёт изображения и визуальный контент
+
+    Вы можете создавать собственных агентов в панели администратора или через API.
+
+    **Для большинства конечных точек чата нужен ID агента**
+
+    Чтобы найти ID агента, можно:
+    - Использовать конечную точку API `GET /persona` для вывода списка всех агентов
+    - В панели администратора: открыть агента и посмотреть первое число в URL
+  </Accordion>
+</AccordionGroup>
+
+## Чат {#chat}
+
+<AccordionGroup>
+  <Accordion title="Потоковые ответы чата" icon="comment">
+    Система ответов чата использует пакетную архитектуру для доставки ответов пользователям в реальном времени.
+    Вместо ожидания полного ответа система разбивает взаимодействие в чате на отдельные пакеты,
+    которые передаются постепенно.
+
+    Каждый пакет имеет единую структуру, определённую классом `Packet`:
+
+    ```python
+    class Packet(BaseModel):
+      ind: int        # Sequential index for ordering
+      obj: PacketObj  # The actual content including type of packet
+    ```
+
+    **Поток передачи:**
+
+    - Запрос чата запускает процесс потоковой передачи
+    - В зависимости от нужных операций создаются пакеты разных типов
+    (рассуждения, вызовы инструментов, ответ ИИ, документы, цитаты и т. д.)
+    - Пакеты отправляются с последовательными индексами, чтобы сохранить порядок
+    - Фронтенд обрабатывает пакеты в реальном времени и обновляет интерфейс
+    - Пакет `OverallStop` сигнализирует о завершении
+  </Accordion>
+
+  <Accordion title="Базовые пакеты сообщений" icon="message">
+    **MessageStart и MessageDelta**
+
+    Эти пакеты составляют основу системы потоковых ответов:
+
+    - **MessageStart**:
+    начинает новое сообщение с начальным содержимым и итоговыми найденными документами (если они есть)
+    - **MessageDelta**: доставляет текст по мере его создания
+  </Accordion>
+
+  <Accordion title="Управляющие пакеты" icon="gear">
+    **Управление сессией и разделами**
+
+    Управляющие пакеты определяют ход и жизненный цикл потоковой передачи:
+
+    - **OverallStop**: сигнализирует о конце всей сессии потоковой передачи
+    - **SectionEnd**: отмечает завершение типа пакетов (рассуждения, сообщение, цитаты и т. д.)
+  </Accordion>
+
+  <Accordion title="Пакеты инструментов" icon="wrench">
+    Ответы инструментов передаются так же, как основной ответ сообщения.
+
+    **Инструменты поиска**
+    - SearchToolStart и SearchToolDelta обрабатывают операции поиска документов
+
+    **Генерация изображений**
+    - ImageGenerationToolStart,
+    ImageGenerationToolDelta и ImageGenerationToolHeartbeat управляют созданием изображений ИИ
+
+    **Пользовательские инструменты**
+    - CustomToolStart и CustomToolDelta используются для MCP и пользовательских действий
+
+    Пакет start сигнализирует о начале ответа инструмента. Пакеты delta передают результаты по мере их появления.
+  </Accordion>
+
+  <Accordion title="Пакеты рассуждений" icon="lightbulb">
+    Все шаги рассуждений передаются потоком, чтобы фронтенд мог отображать их по мере обработки. Пакеты рассуждений,
+    как правило, отправляются первыми.
+
+    - **ReasoningStart**: начинает раздел рассуждений
+    - **ReasoningDelta**: передаёт процесс рассуждений ИИ
+  </Accordion>
+
+  <Accordion title="Пакеты цитат" icon="quote-right">
+    Пакеты цитат связывают ID цитат с ID документов.
+
+    - **CitationStart**: начинает результаты цитирования
+    - **CitationDelta**: доставляет цитаты и ссылки на источники
+  </Accordion>
+</AccordionGroup>
+
+## Коннекторы {#connectors}
+
+<Tip>
+  Когда вы видите термин *коннектор* в Yahont или в другом месте этой документации,
+  обычно имеются в виду *ConnectorCredentialPairs*
+</Tip>
+
+<AccordionGroup>
+  <Accordion title="Коннекторы" icon="plug">
+    `Connectors` в Yahont определяют данные, которые вы хотите индексировать
+    - `name`: на самом деле не отображается в интерфейсе, если задано `ConnectorCredentialPairMetadata:name`
+    - `source`: к какой системе подключаться (см. раскрывающийся блок `DocumentSource` ниже)
+    - `input_type`: как `Connector` получает данные (см. раскрывающийся блок `InputType` ниже)
+    - `connector_specific_config`: настройки конкретного источника, например пути к папкам или каналы. Ожидаемые настройки конкретного коннектора смотрите в [`/backend/onyx/connectors`](https://github.com/pipedude/yahont-ce/tree/main/backend/onyx/connectors).
+    - `refresh_freq`: как часто проверять новое или обновлённое содержимое, в секундах
+    - `prune_freq`: как часто удалять устаревшее содержимое из Yahont, в секундах
+    - `indexing_start`: необязательная дата и время начала индексации
+
+    ```python Python
+    class ConnectorBase(BaseModel):
+      name: str
+      source: DocumentSource
+      input_type: InputType
+      connector_specific_config: dict[str, Any]
+      refresh_freq: int | None = None
+      prune_freq: int | None = None
+      indexing_start: datetime | None = None
+    ```
+  </Accordion>
+
+  <Accordion title="Учётные данные" icon="key">
+    `Credentials` содержат сведения для аутентификации, необходимые для доступа к источникам данных. Это ключи API,
+    токены OAuth, персональные токены доступа (PAT) или учётные данные сервисных аккаунтов,
+    которые позволяют Yahont безопасно подключаться к вашим внешним системам.
+
+    Типы `Credentials`:
+    - **Ключи API**: простая аутентификация по токену
+    - **Токены OAuth**: делегированная авторизация с возможностью обновления
+    - **Сервисные аккаунты**: аутентификация между машинами
+    - **Персональные токены доступа**: учётные данные доступа конкретного пользователя
+  </Accordion>
+
+  <Accordion title="ConnectorCredentialPairs" icon="link">
+    За кулисами `Connectors` и `Credentials` объединяются в `ConnectorCredentialPair` (CC-pair,
+    пара «коннектор — учётные данные»). CC-pair — это активное подключение,
+    которое может синхронизировать данные из ваших внешних источников в Yahont.
+    Именно CC-pair вы видите и обслуживаете на странице администратора `Connectors`.
+
+    Возможности CC-pair:
+    - **Активные подключения**: синхронизация данных между источником и Yahont в реальном времени
+    - **Мониторинг состояния**: отслеживание работоспособности и производительности синхронизации
+    - **Управление доступом**: определение, кто может видеть данные из этого подключения
+    - **Управление конфигурацией**: изменение настроек синхронизации и учётных данных
+
+    <Warning>
+
+      Если вы создаёте `Connectors` через API, их нужно связать с `Credential` (CC-pair), чтобы они стали активными!
+    </Warning>
+  </Accordion>
+
+  <Accordion title="ConnectorCredentialPairMetadata" icon="gear">
+    `ConnectorCredentialPairMetadata` определяет настройки конфигурации и доступа для CC-pair.
+
+    Параметры конфигурации:
+    - `name`: необязательное отображаемое имя CC-pair (переопределяет имя `Connector`)
+    - `access_type`: кто может получать доступ к данным этого CC-pair (см. раскрывающийся блок `AccessType` ниже)
+    - `auto_sync_options`: необязательная конфигурация параметров автоматической синхронизации
+    - `groups`: список ID групп, имеющих доступ к этому CC-pair
+
+    ```python Python
+    class ConnectorCredentialPairMetadata(BaseModel):
+      name: str | None = None
+      access_type: AccessType
+      auto_sync_options: dict[str, Any] | None = None
+      groups: list[int] = Field(default_factory=list)
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Документы {#documents}
+
+<AccordionGroup>
+  <Accordion title="DocumentBase" icon="page">
+    `DocumentBase` — основная структура, используемая в Yahont для хранения данных документов и управления ими.
+    Обратите внимание, что эмбеддинги хранятся в OpenSearch отдельно.
+    - `id`: уникальный идентификатор. Создаётся Yahont, если не указан
+    - `sections`: список разделов содержимого (см. `TextSection` и `ImageSection`)
+    - `source`: система, из которой получен документ (см. `DocumentSource`)
+    - `semantic_identifier`: отображается в интерфейсе как название документа
+    - `metadata`: произвольные `string` или `list[string]`, которые будут сохранены как теги документа
+    - `doc_updated_at`: метка времени UTC последнего обновления документа
+    - `chunk_count`: число фрагментов, на которые документ разбивается для обработки
+    - `primary_owners`: метаданные о людях, связанных с документом
+    - `secondary_owners`: метаданные о людях, связанных с документом
+    - `title`: используется для поиска (по умолчанию `semantic_identifier`, если не указан)
+    - `from_ingestion_api`: получен ли этот документ через Ingestion API
+    - `additional_info`: информация, специфичная для коннектора, которая может понадобиться другим частям кода
+    - `external_access`: данные синхронизации прав (только Enterprise Edition)
+
+    <Note>
+
+      Ingestion API расширяет определение DocumentBase полем `cc_pair_id`,
+      чтобы автоматически связать документ с CC-pair.
+    </Note>
+
+    ```python Python expandable
+    class DocumentBase(BaseModel):
+      """Used for Yahont ingestion api, the ID is inferred before use if not provided"""
+
+      id: str | None = None
+      sections: list[TextSection | ImageSection]
+      source: DocumentSource | None = None
+      semantic_identifier: str
+      metadata: dict[str, str | list[str]]
+
+      doc_updated_at: datetime | None = None
+      chunk_count: int | None = None
+
+      primary_owners: list[BasicExpertInfo] | None = None
+      secondary_owners: list[BasicExpertInfo] | None = None
+      title: str | None = None
+      from_ingestion_api: bool = False
+      additional_info: Any = None
+
+      external_access: ExternalAccess | None = None
+    ```
+  </Accordion>
+
+  <Accordion title="DocumentSource" icon="file">
+    `DocumentSource` — перечисление, определяющее допустимые источники документа.
+    Для загрузки файлов в Ingestion API и программного создания `Connectors` нужно указать `DocumentSource`.
+
+    ```python Python expandable
+    class DocumentSource(str, Enum):
+      INGESTION_API = "ingestion_api"     # Special case, document passed in via Yahont APIs without specifying a source type
+      SLACK = "slack"
+      WEB = "web"
+      GOOGLE_DRIVE = "google_drive"
+      GMAIL = "gmail"
+      REQUESTTRACKER = "requesttracker"
+      GITHUB = "github"
+      GITBOOK = "gitbook"
+      GITLAB = "gitlab"
+      GURU = "guru"
+      BOOKSTACK = "bookstack"
+      CONFLUENCE = "confluence"
+      JIRA = "jira"
+      SLAB = "slab"
+      PRODUCTBOARD = "productboard"
+      FILE = "file"
+      NOTION = "notion"
+      ZULIP = "zulip"
+      LINEAR = "linear"
+      HUBSPOT = "hubspot"
+      DOCUMENT360 = "document360"
+      GONG = "gong"
+      GOOGLE_SITES = "google_sites"
+      ZENDESK = "zendesk"
+      LOOPIO = "loopio"
+      DROPBOX = "dropbox"
+      SHAREPOINT = "sharepoint"
+      TEAMS = "teams"
+      SALESFORCE = "salesforce"
+      DISCOURSE = "discourse"
+      AXERO = "axero"
+      CLICKUP = "clickup"
+      MEDIAWIKI = "mediawiki"
+      WIKIPEDIA = "wikipedia"
+      ASANA = "asana"
+      S3 = "s3"
+      R2 = "r2"
+      GOOGLE_CLOUD_STORAGE = "google_cloud_storage"
+      OCI_STORAGE = "oci_storage"
+      XENFORO = "xenforo"
+      NOT_APPLICABLE = "not_applicable"
+      DISCORD = "discord"
+      FRESHDESK = "freshdesk"
+      FIREFLIES = "fireflies"
+      EGNYTE = "egnyte"
+      AIRTABLE = "airtable"
+      HIGHSPOT = "highspot"
+
+      IMAP = "imap"
+
+      # Special case just for integration tests
+      MOCK_CONNECTOR = "mock_connector"
+    ```
+  </Accordion>
+
+  <Accordion title="TextSection" icon="text">
+    `TextSection` — часть документа в Yahont.
+    - `text`: собственно текстовое содержимое раздела
+    - `link`: необязательный URL, к которому относится этот текстовый раздел или из которого он получен
+
+    ```python Python
+    class TextSection(Section):
+      text: str
+      link: str | None = None
+    ```
+  </Accordion>
+
+  <Accordion title="ImageSection" icon="image">
+    `ImageSection` — изображение, извлечённое из документа в Yahont.
+    - `image_file_id`: UUID файла изображения, хранящегося в файловом хранилище Yahont
+    - `text`: необязательное текстовое описание или подпись к изображению
+    - `link`: необязательный URL, к которому относится этот раздел изображения или из которого он получен
+
+    ```python Python
+    class ImageSection(Section):
+      image_file_id: str
+      text: str | None = None
+      link: str | None = None
+    ```
+  </Accordion>
+
+  <Accordion title="AccessType" icon="shield">
+    `AccessType` определяет, кто может получать доступ к данным `Connector` в Yahont.
+    - `PUBLIC`: все пользователи Yahont могут получать доступ к данным этого `Connector`
+    - `PRIVATE`: только пользователь, создавший `Connector`, и указанные группы могут получать доступ к данным этого `Connector`
+    - `SYNC`: значение SYNC можно задать только `Connectors` с поддержкой синхронизации прав. `Connector` будет синхронизировать права доступа с исходной системой.
+
+    ```python Python
+    class AccessType(str, Enum):
+      PUBLIC = "public"
+      PRIVATE = "private"
+      SYNC = "sync"
+    ```
+  </Accordion>
+
+  <Accordion title="InputType" icon="gear">
+    `InputType` определяет, как `Connector` получает данные из исходной системы.
+    - `LOAD_STATE`: однократная загрузка данных из источника
+    - `POLL`: непрерывный опрос источника на наличие новых данных (начинается с полной загрузки)
+    - `EVENT`: для большинства `Connectors` не реализовано
+    - `SLIM_RETRIEVAL`: для `Connectors` с синхронизацией прав
+
+    ```python Python
+    class InputType(str, Enum):
+      LOAD_STATE = "load_state"
+      POLL = "poll"
+      EVENT = "event"
+      SLIM_RETRIEVAL = "slim_retrieval"
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Дальнейшие шаги {#next-steps}
+
+<CardGroup cols={2}>
+  {/* <Card title="Guide:
+  Create a Connector with the API" icon="lightbulb" href="/developers/guides/create_connector"> Learn how to create a
+  Connector through the API
+  </Card> */}
+
+  <Card title="Руководство: индексирование файлов с помощью Ingestion API" icon="lightbulb" href="/developers/guides/index_files_ingestion_api">
+    Узнайте, как индексировать файлы с помощью Ingestion API
+  </Card>
+
+  <Card title="Руководство: отправка сообщения чата" icon="comment" href="/developers/guides/chat_new_guide">
+    Простой пример программной отправки сообщения
+  </Card>
+
+  {/* <Card title="Guide:
+  Set up an MCP (Admin Panel)" icon="comment" href="/developers/guides/mcp_guide"> Learn how to set up an MCP server in
+  the Admin Panel
+  </Card> */}
+</CardGroup>

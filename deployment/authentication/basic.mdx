@@ -1,0 +1,56 @@
+---
+title: "Базовая аутентификация"
+description: "Аутентификация по электронной почте и паролю в Yahont"
+icon: "user-lock"
+---
+
+Аутентификация по электронной почте и паролю всегда включена и работает из коробки, без настройки.
+Первый зарегистрировавшийся пользователь становится администратором.
+
+Для продакшена мы рекомендуем добавить [Google OAuth](/deployment/authentication/oauth),
+[OIDC](/deployment/authentication/oidc) или [SAML](/deployment/authentication/saml). Когда SSO заработает,
+вход и регистрацию по паролю можно [полностью
+отключить](/deployment/authentication/sso_providers#turning-off-password-login).
+
+<Tip>
+  Если у вас есть вопросы о том, какой подход к аутентификации лучше подходит вашей организации,
+  не стесняйтесь [связаться с нами](mailto:support@yahont.ai) — мы с радостью поможем выбрать подходящее решение.
+</Tip>
+
+## Требования к паролю {#password-requirements}
+
+По умолчанию пароль должен содержать от 8 до 64 символов. Ограничения длины и требования к классам символов (заглавные,
+строчные, цифры, специальные символы)
+настраиваются в **Панель администратора** → **Организация** → **Безопасность и защита**.
+
+## Подтверждение адреса электронной почты {#email-verification}
+
+Включение подтверждения адреса электронной почты не позволяет пользователям входить,
+пока они не перейдут по ссылке в письме с подтверждением.
+
+Задайте следующее в файле `.env`:
+
+```bash
+# Enable email verification
+REQUIRE_EMAIL_VERIFICATION=true
+
+# Email configuration
+SMTP_USER=<EMAIL_TO_SEND_VERIFICATION_EMAILS_FROM>  # e.g. noreply@yourcompany.com
+SMTP_PASS=<PASSWORD_FOR_THE_EMAIL_ABOVE>
+
+# Required for non-Gmail accounts
+SMTP_SERVER=<YOUR_SMTP_SERVER>
+SMTP_PORT=<PORT_YOUR_SMTP_SERVER_LISTENS_ON>  # default: 587
+```
+
+## Дальнейшие шаги {#next-steps}
+
+<CardGroup cols={2}>
+  <Card title="Настройте Google OAuth" icon="google" href="/deployment/authentication/oauth">
+    Google OAuth — безопасный и простой способ аутентифицировать пользователей с помощью их аккаунтов Google.
+  </Card>
+
+  <Card title="Другие параметры конфигурации Yahont" icon="gear" href="/deployment/configuration/configuration">
+    Для Yahont доступно множество других параметров конфигурации.
+  </Card>
+</CardGroup>

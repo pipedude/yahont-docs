@@ -1,0 +1,90 @@
+---
+title: "Пользовательские агенты"
+description: "Создавайте собственных ИИ-агентов для особых сценариев"
+icon: "robot"
+---
+
+Агент — это сочетание заданных пользователем инструкций, знаний и [действий](/overview/core_features/actions).
+Представьте его как члена ИИ-команды, оптимизированного под конкретную задачу.
+
+Агентов Yahont можно использовать лично или делиться ими с другими пользователями или [группами
+пользователей](/admins/user_management/users_and_groups) в Yahont.
+
+{/* TODO Better to have a screenshot of the agent in action, coming soon */}
+
+<img className="rounded-image" src="/assets/overview/core_features/agent.png" alt="Пример агента"/>
+
+## Когда использовать агента {#when-to-use-an-agent}
+
+Используйте агентов, чтобы получить наилучший опыт в повторяющихся сценариях, особенно в тех,
+которыми можно делиться с другими участниками команды.
+
+Типичные примеры:
+- Помощник по адаптации новичков
+- ИИ-служба поддержки
+- Копилот для инженеров
+- Юридический рецензент
+
+Обычно такие агенты ограничены конкретной задачей, например проверкой документов на соответствие политикам безопасности,
+заполнением RFP на основе ранее выполненных и так далее.
+
+## Создание агента {#creating-an-agent}
+
+### Инструкции (промпт) {#instructions-prompting}
+
+<Tip>
+  Поле «Инструкции» практически не ограничивает вас,
+  поэтому рекомендуем проверить разные варианты и убедиться в поведении агента,
+  прежде чем открывать его для всей команды.
+</Tip>
+
+Ниже для примера приведены **инструкции** стандартного агента Yahont.
+
+<Accordion title="Стандартные системные инструкции Yahont">
+  ```
+  You are a highly capable, thoughtful, and precise assistant. Your goal is to deeply understand the user's intent, ask clarifying questions when needed, think step-by-step through complex problems, provide clear and accurate answers, and proactively anticipate helpful follow-up information. Always prioritize being truthful, nuanced, insightful, and efficient.
+  The current date is [[CURRENT_DATETIME]]
+
+  You use different text styles, bolding, emojis (sparingly), block quotes, and other formatting to make your responses more readable and engaging.
+  You use proper Markdown and LaTeX to format your responses for math, scientific, and chemical formulas, symbols, etc.: '$$\n[expression]\n$$' for standalone cases and '\( [expression] \)' when inline. For code you prefer to use Markdown and specify the language.
+  You can use Markdown horizontal rules (---) to separate sections of your responses.
+  You can use Markdown tables to format your responses for data, lists, and other structured information.
+  ```
+
+  Обратите внимание: `[[CURRENT_DATETIME]]` подставляется динамически,
+  а в зависимости от включённых действий могут добавляться дополнительные инструкции по их использованию.
+</Accordion>
+
+Одно из главных преимуществ создания агента — возможность управлять его целью и поведением.
+Инструкции пишутся исключительно на естественном языке и могут включать, например:
+- Всегда представляй результаты в виде таблицы.
+- Старайся цитировать документы дословно, а не перефразировать.
+- Отмечай информацию из документов старше 3 месяцев.
+
+### Знания {#knowledge}
+
+<Tip>
+  Обычно лучше включать только те знания, которые нужны агенту для выполнения задачи. Чем уже набор документов,
+  тем надёжнее работа.
+</Tip>
+
+При создании агента можно включить знания из [коннекторов](/overview/core_features/connectors) или загруженные файлы.
+Знания из коннекторов остаются актуальными, пока документы меняются во внешних источниках.
+
+### Действия {#actions}
+
+<Note>
+  Если какого-либо из встроенных действий (веб-поиск, внутренний поиск, генерация изображений, выполнение кода) нет,
+  обратитесь к администратору Yahont. Их нужно настроить в панели администратора,
+  прежде чем они станут доступны при создании агента.
+</Note>
+
+[Действия](/overview/core_features/actions) (иногда их называют инструментами)
+позволяют агентам выполнять операции во внешних приложениях через API.
+Одни инструменты помогают Yahont давать более точные ответы (например, встроенные инструменты Yahont),
+а другие позволяют системе делать больше, чем просто отвечать на вопросы.
+
+Примеры типичных действий:
+- Обновление статусов заявок на основе диалога и того, были ли удовлетворены потребности пользователя.
+- Проверка состояния сервиса, чтобы давать ответы в реальном времени.
+- Продвижение сделок по воронке продаж в CRM на основе расшифровок звонков или запроса пользователя.

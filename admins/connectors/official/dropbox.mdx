@@ -1,0 +1,79 @@
+---
+title: "Dropbox"
+description: "Доступ к знаниям из Dropbox"
+---
+
+## Как это работает {#how-it-works}
+
+Коннектор Dropbox загружает в Yahont все документы из вашего аккаунта Dropbox.
+
+Коннектор рекурсивно получает все файлы из корневого каталога вашего аккаунта Dropbox.
+Сейчас нельзя получать файлы только из отдельных каталогов.
+
+Коннектор выполняет загрузку только один раз при инициализации. Если вы хотите получить больше документов,
+нужно создать новый токен доступа (шаг 6 ниже), вставить его в коннектор и повторно инициализировать коннектор.
+
+## Настройка {#setting-up}
+
+### Авторизация {#authorization}
+
+<Steps>
+  <Step title="Создайте приложение Dropbox">
+    Откройте https://www.dropbox.com/developers/apps и нажмите кнопку `Create app` в правом верхнем углу.
+    Выберите `Scoped access` и `Full Dropbox` в качестве типа доступа. Назовите приложение, например,
+    «Yahont Connector», и нажмите `Create app`.
+
+    <img className="rounded-image" src="/assets/admins/connectors/dropbox/dropbox-connector-1.png" alt="Шаг 1 настройки Dropbox"/>
+  </Step>
+
+  <Step title="Откройте Permissions">
+    Нажмите на вкладку `Permissions`.
+
+    <img className="rounded-image" src="/assets/admins/connectors/dropbox/dropbox-connector-2.png" alt="Шаг 2 настройки Dropbox"/>
+  </Step>
+
+  <Step title="Предоставьте нужные области">
+    Отметьте разрешения `files.content.read` и `sharing.write`, чтобы файлы можно было читать,
+    а ссылки на документы создавать. Нажмите `Submit`, чтобы сохранить изменения.
+
+    <img className="rounded-image" src="/assets/admins/connectors/dropbox/dropbox-connector-3.png" alt="Шаг 3 настройки Dropbox"/>
+  </Step>
+
+  <Step title="Создайте токен доступа">
+    Перейдите на вкладку `Settings` и прокрутите вниз до раздела `OAuth 2`. Нажмите `Generate`,
+    чтобы создать токен доступа.
+
+    <Warning>
+      Сначала нужно завершить предоставление разрешений, а потом создавать токен доступа.
+      Изменение разрешений не влияет на существующие токены доступа, и Yahont не сможет индексировать ваш Dropbox.
+    </Warning>
+
+    <img className="rounded-image" src="/assets/admins/connectors/dropbox/dropbox-connector-4.png" alt="Шаг 4 настройки Dropbox"/>
+  </Step>
+
+  <Step title="Скопируйте токен доступа">
+    Скопируйте токен доступа.
+
+    <Info>
+      Обновите страницу, если нужно заново создать токен доступа
+    </Info>
+
+    <img className="rounded-image" src="/assets/admins/connectors/dropbox/dropbox-connector-5.png" alt="Шаг 5 настройки Dropbox"/>
+  </Step>
+</Steps>
+
+### Индексирование {#indexing}
+
+<Steps>
+  <Step title="Откройте коннектор Dropbox">
+    В интерфейсе Yahont откройте панель администратора и выберите коннектор **Dropbox**
+  </Step>
+
+  <Step title="Введите токен доступа">
+    Укажите токен доступа с предыдущего шага
+  </Step>
+
+  <Step title="Запустите индексацию">
+    Нажмите `Подключить`, чтобы начать индексацию ваших файлов Dropbox
+  </Step>
+</Steps>

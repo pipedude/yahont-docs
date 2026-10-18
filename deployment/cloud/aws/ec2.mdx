@@ -1,0 +1,68 @@
+---
+title: "EC2"
+description: "Развёртывание Yahont на AWS EC2"
+---
+
+import CustomDomain from "/snippets/custom-domain.mdx"
+import InstallYahont from "/snippets/install-yahont.mdx"
+import DeploymentNextSteps from "/snippets/deployment-next-steps.mdx"
+
+Использование AWS EC2 — рекомендуемый способ развернуть Yahont. Его просто настроить,
+и он удовлетворяет требованиям к производительности 90 % организаций, которые хотят использовать Yahont!
+
+## Руководство {#guide}
+
+<Steps>
+  <Step title="Создайте инстанс EC2">
+    Создайте инстанс EC2 с подходящими ресурсами. В этом руководстве мы используем рекомендуемый инстанс `m7g.xlarge`.
+
+    <Note>
+      Подробности см. в нашем [руководстве по ресурсам](/deployment/getting_started/resourcing).
+    </Note>
+
+    - Дайте инстансу понятное имя, например `onyx-prod`
+    - Выберите AMI `Amazon Linux 2023`
+    - Выберите архитектуру `64-bit (Arm)`
+    - Выберите тип инстанса `m7g.xlarge`
+    - Выберите `Allow HTTPS traffic from the internet` в разделе *Network settings*
+    - Настройте хранилище по руководству по ресурсам
+
+    <img className="rounded-image" src="/assets/deployment/ec2_create_instance.png" alt="Создание инстанса EC2"/>
+
+    <img className="rounded-image" src="/assets/deployment/ec2_https.png" alt="Настройка группы безопасности EC2"/>
+  </Step>
+
+  <Step title="Создайте инстанс">
+    Нажмите **Launch instance** и откройте сведения об инстансе.
+
+    <Tip>
+      Сохраните **Public IPv4 address** инстанса!
+    </Tip>
+
+    <img className="rounded-image" src="/assets/deployment/ec2_ipv4.png" alt="Публичный адрес IPv4 инстанса EC2"/>
+  </Step>
+
+  <CustomDomain />
+
+  <Step title="Установите требования Yahont">
+    Yahont требуются `git`, `docker` и `docker compose`.
+
+    Чтобы установить их в Amazon Linux 2023, выполните следующее:
+
+    ```bash
+    sudo yum update -y
+
+    sudo yum install docker -y
+    sudo service docker start
+
+    sudo curl -L https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/bin/docker-compose
+    sudo chmod +x /usr/local/bin/docker-compose
+
+    sudo yum install git
+    ```
+  </Step>
+
+  <InstallYahont />
+</Steps>
+
+<DeploymentNextSteps />

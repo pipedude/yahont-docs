@@ -1,0 +1,149 @@
+---
+title: "Docker Compose"
+description: "Запуск Agent Wiki на одном хосте с помощью Docker Compose"
+icon: "docker"
+---
+
+Docker Compose — самый быстрый способ запустить Agent Wiki. Он поднимает весь стек на одном хосте: Postgres,
+Redis и OpenSearch для плоскости данных, затем бэкенд, два рабочих процесса, фронтенд и nginx для плоскости приложения.
+
+Postgres, Redis, OpenSearch и nginx — стандартные публичные образы, они загружаются. Только бэкенд,
+два рабочих процесса и фронтенд собираются из исходного кода при первой установке.
+
+## Требования {#requirements}
+
+- Docker с Compose v2 (`docker compose version`)
+- `git` и `openssl`
+- **4 ГБ ОЗУ** — работающий стек использует около 2,5 ГБ
+
+## Установка {#install}
+
+Установщик клонирует репозиторий, создаёт `.env`, собирает образы и запускает стек:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/onyx-dot-app/agent-wiki/main/install.sh | bash
+```
+
+Первая сборка занимает несколько минут. Когда она завершится, откройте `http://localhost:8090`.
+
+<Note>
+  **Первый созданный вами аккаунт становится администратором.** Зарегистрируйтесь, как только стек запустится,
+  прежде чем его займёт кто-то другой.
+</Note>
+
+### Параметры установки {#install-options}
+
+Установщик читает несколько переменных окружения:
+
+| Переменная | По умолчанию | Что делает |
+| --- | --- | --- |
+| `AGENT_WIKI_PORT` | `8090` | Порт хоста, который публикует nginx |
+| `AGENT_WIKI_DIR` | `./agent-wiki` | Куда клонируется репозиторий |
+| `AGENT_WIKI_REF` | `main` | Ветка или тег для получения |
+
+```bash
+AGENT_WIKI_PORT=9000 bash -c "$(curl -fsSL https://raw.githubusercontent.com/onyx-dot-app/agent-wiki/main/install.sh)"
+```
+
+## Ручная установка {#install-manually}
+
+Если вы не хотите передавать скрипт в оболочку по конвейеру, выполните те же шаги вручную:
+
+<Steps>
+  <Step title="Клонируйте репозиторий">
+    ```bash
+    git clone https://github.com/onyx-dot-app/agent-wiki.git
+    cd agent-wiki
+    ```
+  </Step>
+
+  <Step title="Создайте .env">
+    Скопируйте `.env.example` в `.env`, затем задайте настоящий секретный ключ и URL, по которому будет доступен стек:
+
+    ```bash
+    cp .env.example .env
+    echo "SECRET_KEY=$(openssl rand -hex 32)" >> .env
+    echo "PUBLIC_BASE_URL=http://localhost:8090" >> .env
+    echo "AGENT_WIKI_PORT=8090" >> .env
+    ```
+  </Step>
+
+  <Step title="Запустите стек">
+    Контейнеры приложения находятся за профилем Compose `app`. Без него запускается только плоскость данных:
+
+    ```bash
+    docker compose --profile app up -d --build
+    ```
+  </Step>
+
+  <Step title="Займите аккаунт администратора">
+    Откройте `http://localhost:8090` и зарегистрируйтесь. Первый аккаунт становится администратором.
+  </Step>
+</Steps>
+
+## Обязательные настройки {#required-settings}
+
+Два значения должны быть верными, иначе бэкенд отказывается загружаться:
+
+- **`SECRET_KEY`** — любое непустое значение, не совпадающее со значением по умолчанию. Бэкенд и рабочие процессы отказываются запускаться со встроенным
+  секретом для разработки, поэтому продакшен-развёртывания случайно не запустятся с известным ключом.
+- **`PUBLIC_BASE_URL`** — источник, видимый браузеру, по которому доступен стек, без завершающего слэша. Он никогда не
+  выводится из заголовков запроса, потому что подделанный заголовок `Host` иначе управлял бы URL,
+  которые выдаёт приложение. Agent Wiki использует его для построения конечной точки MCP,
+  глубоких ссылок лаунчера и ссылок в исходящих письмах.
+
+Если вы размещаете стек за доменом или обратным прокси,
+задайте `PUBLIC_BASE_URL` внешним URL — `https://wiki.example.com`, а не `http://localhost:8090`.
+
+## После установки {#after-installing}
+
+<Steps>
+  <Step title="Настройте языковую модель">
+    Откройте **Admin → Language Models** и добавьте поставщика. Агенты,
+    триггеры и Auto Organize остаются бездействующими, пока не настроена модель.
+  </Step>
+
+  <Step title="Подключите агента">
+    Создайте ключ API в **Agents & Actions** и направьте вашего агента для программирования на вики. См.
+    [Подключение агента (MCP)](/agent-wiki/automate/mcp).
+  </Step>
+</Steps>
+
+## Эксплуатация стека {#operating-the-stack}
+
+```bash
+# follow logs
+docker compose --profile app logs -f
+
+# stop
+docker compose --profile app down
+
+# upgrade to the latest code
+git pull && docker compose --profile app up -d --build
+```
+
+## Устранение неполадок {#troubleshooting}
+
+<AccordionGroup>
+  <Accordion title="Приложение не отвечает на опубликованном порту">
+    Проверьте журналы командой `docker compose --profile app logs -f`.
+    Самая частая причина — отсутствующий `PUBLIC_BASE_URL` или `SECRET_KEY`, всё ещё равный значению по умолчанию:
+    в обоих случаях бэкенд завершается при загрузке.
+  </Accordion>
+
+  <Accordion title="Запустились только Postgres и Redis">
+    Не указан флаг `--profile app`. Без него Compose запускает только плоскость данных.
+  </Accordion>
+
+  <Accordion title="Первая установка останавливается на полпути без понятной ошибки">
+    Для сборки образов нужно больше запаса, чем для их работы.
+    В Docker Desktop увеличьте объём памяти виртуальной машины в **Settings → Resources** — того,
+    что у хоста достаточно ОЗУ, самого по себе мало.
+  </Accordion>
+
+  <Accordion title="Ссылки указывают на localhost с другого компьютера">
+    `PUBLIC_BASE_URL` всё ещё равен `http://localhost:<port>`. Задайте внешний URL и пересоздайте контейнеры.
+  </Accordion>
+</AccordionGroup>
+
+Для развёртывания на нескольких узлах см. [Kubernetes](/agent-wiki/deployment/kubernetes).

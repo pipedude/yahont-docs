@@ -1,0 +1,17 @@
+<Step title="Направьте домен на инстанс">
+    <Note>
+      Если у вас нет домена, купите его у DNS-провайдера, например [GoDaddy](https://www.godaddy.com/),
+      или пока пропустите HTTPS.
+    </Note>
+
+    Чтобы направить наш домен на новый инстанс, нужно добавить записи `A` и `CNAME` у вашего DNS-провайдера.
+
+    Запись `A` должна быть поддоменом, который вы хотите использовать для инстанса Yahont, например `prod`.
+
+    Запись `CNAME` должна иметь то же имя с `www.` в начале, то есть `www.prod`, указывающее на полный домен,
+    например `prod.yahont.ai`.
+
+    <img className="rounded-image" src="/assets/deployment/arecord.png" alt="Настройка DNS-записи A"/>
+
+    <img className="rounded-image" src="/assets/deployment/cname.png" alt="Настройка DNS-записи CNAME"/>
+</Step>

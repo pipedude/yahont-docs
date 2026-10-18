@@ -1,0 +1,61 @@
+---
+title: "Fireflies"
+description: "Доступ к расшифровкам встреч из Fireflies"
+---
+
+## Как это работает {#how-it-works}
+
+Коннектор Fireflies индексирует встречи из вашего аккаунта Fireflies.
+
+## Настройка {#setting-up}
+
+### Авторизация {#authorization}
+
+<Steps>
+  <Step title="Войдите в Fireflies">
+    Войдите в Fireflies (у пользователя должны быть права).
+  </Step>
+
+  <Step title="Откройте настройки">
+    Нажмите на аватар профиля и выберите **Settings** или нажмите **Settings** на боковой панели.
+
+    ![Настройки Fireflies](/assets/admins/connectors/fireflies/fireflies1.png)
+  </Step>
+
+  <Step title="Откройте настройки разработчика">
+    Выберите **Developer Settings**.
+
+    <img className="rounded-image" src="/assets/admins/connectors/fireflies/fireflies2.png" alt="Настройки разработчика Fireflies"/>
+  </Step>
+
+  <Step title="Скопируйте API-ключ">
+    Скопируйте **API Key**.
+
+    <img className="rounded-image" src="/assets/admins/connectors/fireflies/fireflies3.png" alt="API-ключ Fireflies"/>
+  </Step>
+
+  <Step title="Авторизуйте коннектор">
+    Используйте API-ключ, чтобы авторизовать коннектор Fireflies в Yahont.
+  </Step>
+</Steps>
+
+### Индексирование {#indexing}
+
+<Steps>
+  <Step title="Откройте коннектор Fireflies">
+    Откройте панель администратора. На боковой панели выберите **Добавить коннектор** и нажмите на плитку **Fireflies**.
+  </Step>
+
+  <Step title="Создайте учётные данные">
+    Выберите **Создать новые** и укажите ваш **API Key**, а также, при желании, название для учётных данных.
+    Нажмите **Создать**: учётные данные будут сохранены и выбраны автоматически.
+  </Step>
+
+  <Step title="Настройте коннектор">
+    Нажмите **Продолжить**, задайте название, настройте доступ к документам и назначьте группы для коннектора.
+  </Step>
+
+  <Step title="Создайте коннектор">
+    Нажмите **Создать коннектор**. Yahont автоматически начнёт индексировать ваши встречи.
+  </Step>
+</Steps>

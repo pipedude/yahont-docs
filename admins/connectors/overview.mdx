@@ -1,0 +1,238 @@
+---
+title: "Обзор"
+description: "Управление коннекторами и источниками данных в Yahont"
+icon: "circle-nodes"
+---
+
+Коннекторы Yahont создают мост между источниками данных вашей организации и функциями генеративного ИИ в Yahont.
+Почти все коннекторы постоянные и регулярно синхронизируют изменения из вашего источника.
+
+<Note>
+  И данные, получаемые из источника, и данные, к которым ваши пользователи имеют доступ через Yahont,
+  можно настроить под ваши потребности!
+</Note>
+
+Инструкции по каждому коннектору смотрите в разделе [Поддерживаемые коннекторы](#supported-connectors).
+
+<img className="rounded-image" src="/assets/admins/connectors/add_connector.png" alt="Страница добавления коннектора в Yahont"/>
+
+## Добавление коннектора {#adding-a-connector}
+
+Чтобы добавить новый коннектор, откройте **панель администратора** и нажмите **Добавить коннектор** на боковой панели.
+На этой странице показаны все официально поддерживаемые коннекторы.
+
+<Info>
+  Раздел «ИИ и наблюдаемость» (коннектор Braintrust) показывается, если в окружении задано `SHOW_EXTRA_CONNECTORS=true`.
+  В Yahont CE шаблон `.env` задаёт это значение.
+</Info>
+
+Нажмите на любую плитку, чтобы начать создание нового коннектора.
+
+### Учётные данные {#credentials}
+
+Большинству коннекторов нужна та или иная аутентификация, чтобы Yahont мог получить доступ к вашему источнику.
+Эта аутентификация называется учётными данными и зависит от коннектора.
+
+<img className="rounded-image" src="/assets/admins/connectors/generic_credentials.png" alt="Страница учётных данных коннектора Yahont"/>
+
+### Конфигурация {#configuration}
+
+Каждому коннектору нужно задать название. Кроме того, у каждого коннектора есть собственные параметры конфигурации,
+определяющие индексируемые данные.
+
+<img className="rounded-image" src="/assets/admins/connectors/generic_config.png" alt="Страница конфигурации коннектора Yahont"/>
+
+### Управление доступом к документам {#document-access-controls}
+
+Коннекторы можно настроить как **Приватные**, **Публичные** или с **автосинхронизацией прав**.
+
+**Приватный**: только пользователь, создавший коннектор, видит данные этого коннектора в Yahont.
+Вы также можете предоставить доступ к данным коннектора отдельным пользователям и группам пользователей.
+
+**Публичный**: все пользователи Yahont видят данные этого коннектора.
+
+<Warning>
+  Если вы настроите коннектор на доступ к приватным данным в источнике,
+  все пользователи Yahont смогут увидеть эти данные.
+</Warning>
+
+#### Коннекторы с синхронизацией прав {#permission-syncing-connectors}
+
+Если задать для коннектора тип доступа **Автосинхронизация прав**,
+Yahont будет вести список управления доступом из источника и ограничивать пользователей только теми данными,
+к которым у них есть доступ.
+
+Синхронизация прав доступна только для следующих коннекторов:
+- Confluence
+- Jira
+- Google Drive (нужно использовать сервисный аккаунт или учётные данные OAuth администратора Google Workspace)
+- Gmail (нужно использовать сервисный аккаунт или учётные данные OAuth администратора Google Workspace)
+- GitHub
+
+<Note>
+  Коннекторы с синхронизацией прав — функция Enterprise Edition.
+</Note>
+
+### Расширенная конфигурация {#advanced-configuration}
+
+Нажатие **Расширенная конфигурация** в левом нижнем углу страницы конфигурации коннектора откроет дополнительные
+необязательные параметры индексации.
+
+**Частота очистки**: как часто старые данные (которых больше нет в источнике) удаляются из Yahont. По умолчанию 30 дней.
+
+**Частота обновления**: как часто из источника получаются новые данные. По умолчанию 30 минут.
+
+**Дата начала индексации**: дата и время, начиная с которых индексируются данные (данные,
+созданные или обновлённые до этой даты, индексироваться не будут). По умолчанию даты начала нет,
+поэтому первая попытка индексации читает всю историю источника.
+В большом источнике эта первая попытка может занять несколько дней. Задайте дату начала при создании коннектора,
+если вам нужно только недавнее содержимое или вы хотите, чтобы коннектор стал доступен для поиска быстрее.
+
+<img className="rounded-image" src="/assets/admins/connectors/generic_advanced_config.png" alt="Страница расширенной конфигурации коннектора Yahont"/>
+
+## Управление существующими коннекторами {#managing-existing-connectors}
+
+Чтобы увидеть существующие коннекторы,
+откройте **панель администратора** и нажмите **Существующие коннекторы** на боковой панели.
+На этой странице показан обзор ваших коннекторов, их статус и объём проиндексированных данных.
+
+<img className="rounded-image" src="/assets/admins/connectors/indexing_status.png" alt="Страница существующих коннекторов Yahont со статусами коннекторов"/>
+
+### Статус коннектора {#connector-status}
+
+Статус коннектора может быть таким:
+
+#### Активные {#active}
+
+| Статус | Описание |
+| --- | --- |
+| **Проиндексирован** | Коннектор полностью работает, и все данные синхронизированы на момент последней попытки индексации. |
+| **Запланирован** | Новые коннекторы или коннекторы, достигшие частоты обновления, но ещё не начавшие новую попытку индексации. |
+| **Индексация / Первичная индексация** | Коннектор сейчас получает данные из источника. |
+
+#### Неактивные или полуактивные {#inactive-or-semi-active}
+
+| Статус | Описание |
+| --- | --- |
+| **Приостановлен** | Коннектор приостановлен и не будет получать новые данные, пока его не возобновят. Пользователи по-прежнему могут пользоваться проиндексированными данными. |
+| **Ошибка** | В коннекторе произошла ошибка во время индексации. Данные, проиндексированные до ошибки, остаются доступными. Yahont попробует проиндексировать снова. Если ошибок будет слишком много, коннектор будет приостановлен. |
+
+<Note>
+  Большинство статусов «Ошибка» временные и проходят сами в течение нескольких часов. Если вы видите статус «Ошибка»,
+  который сохраняется, пожалуйста, свяжитесь с нами.
+</Note>
+
+### Сведения о коннекторе {#connector-details}
+
+Нажатие на существующий коннектор покажет сведения о его конфигурации, статусе и попытках индексации.
+
+В меню **Управление** можно приостановить, возобновить, удалить коннектор или запустить его полную переиндексацию.
+
+В разделе **Расширенные** можно увидеть настройки очистки и обновления, а также историю попыток индексации.
+
+<img className="rounded-image" src="/assets/admins/connectors/connector_details.png" alt="Страница сведений о коннекторе Yahont"/>
+
+<img className="rounded-image" src="/assets/admins/connectors/indexing_attempts.png" alt="Страница сведений о коннекторе Yahont: попытки индексации и сбои"/>
+
+### Сбои индексации {#indexing-failures}
+
+Редко вы увидите попытку индексации **Завершено с ошибками**. Если это произошло,
+нажмите кнопку **Устранить все ошибки**, чтобы запустить полную переиндексацию коннектора.
+
+## Поддерживаемые коннекторы {#supported-connectors}
+
+<Warning>
+  Не нашли нужный коннектор? Сообщите нам через [GitHub Issues](https://github.com/pipedude/yahont-ce/issues)!
+</Warning>
+
+### База знаний и вики {#knowledge-base-wikis}
+
+<Columns cols={3}>
+  <Card title="Confluence" icon="confluence" href="/admins/connectors/official/confluence" horizontal/>
+
+  <Card title="SharePoint и OneDrive" icon="microsoft" href="/admins/connectors/official/microsoft-365/sharepoint" horizontal/>
+
+  <Card title="Notion" icon="notion" href="/admins/connectors/official/notion" horizontal/>
+
+  <Card title="BookStack" icon="book" href="/admins/connectors/official/bookstack" horizontal/>
+
+  <Card title="Discourse" icon="comments" href="/admins/connectors/official/discourse" horizontal/>
+
+  <Card title="GitBook" icon="book-open" href="/admins/connectors/official/gitbook" horizontal/>
+
+  <Card title="Outline" icon="book" href="/admins/connectors/official/outline" horizontal/>
+
+  <Card title="MediaWiki" icon="wikipedia-w" href="/admins/connectors/official/mediawiki" horizontal/>
+
+  <Card title="Wikipedia" icon="wikipedia-w" href="/admins/connectors/official/wikipedia" horizontal/>
+
+  <Card title="Google Sites" icon="google" href="/admins/connectors/official/google_sites" horizontal/>
+</Columns>
+
+    ### Облачные хранилища
+
+<Columns cols={3}>
+  <Card title="Google Drive" icon="google-drive" href="/admins/connectors/official/google_drive/overview" horizontal/>
+
+  <Card title="Dropbox" icon="dropbox" href="/admins/connectors/official/dropbox" horizontal/>
+
+  <Card title="AWS S3" icon="aws" href="/admins/connectors/official/s3/overview" horizontal/>
+
+  <Card title="Google Storage" icon="google" href="/admins/connectors/official/google_storage" horizontal/>
+
+  <Card title="S3 (совместимые хранилища)" icon="server" href="/admins/connectors/official/s3_compatible" horizontal/>
+</Columns>
+
+    ### Тикеты и управление задачами
+
+<Columns cols={3}>
+  <Card title="Jira" icon="jira" href="/admins/connectors/official/jira" horizontal/>
+
+  <Card title="Freshdesk" icon="headset" href="/admins/connectors/official/freshdesk" horizontal/>
+
+  <Card title="TestRail" icon="clipboard-check" href="/admins/connectors/official/testrail" horizontal/>
+</Columns>
+
+    ### Обмен сообщениями
+
+<Columns cols={3}>
+  <Card title="Slack" icon="slack" href="/admins/connectors/official/slack/slack_indexed" horizontal/>
+
+  <Card title="Microsoft Teams" icon="microsoft" href="/admins/connectors/official/microsoft-365/teams" horizontal/>
+
+  <Card title="Gmail" icon="envelope" href="/admins/connectors/official/gmail/overview" horizontal/>
+
+  <Card title="Outlook" icon="microsoft" href="/admins/connectors/official/microsoft-365/outlook" horizontal/>
+
+  <Card title="Email (IMAP)" icon="envelope" href="/admins/connectors/official/imap" horizontal/>
+
+  <Card title="Яндекс Почта" icon="envelope" href="/admins/connectors/official/yandex_mail" horizontal/>
+
+  <Card title="Mail.ru" icon="envelope" href="/admins/connectors/official/mailru_mail" horizontal/>
+
+  <Card title="Discord" icon="discord" href="/admins/connectors/official/discord" horizontal/>
+
+  <Card title="XenForo" icon="comments" href="/admins/connectors/official/xenforo" horizontal/>
+
+  <Card title="Zulip" icon="zulip" href="/admins/connectors/official/zulip" horizontal/>
+</Columns>
+
+    ### Репозитории кода
+
+<Columns cols={3}>
+  <Card title="GitHub" icon="github" href="/admins/connectors/official/github" horizontal/>
+
+  <Card title="GitLab" icon="gitlab" href="/admins/connectors/official/gitlab" horizontal/>
+
+  <Card title="Bitbucket" icon="bitbucket" href="/admins/connectors/official/bitbucket" horizontal/>
+</Columns>
+
+    ### Другое
+
+<Columns cols={3}>
+  <Card title="Веб-скрейпер" icon="globe" href="/admins/connectors/official/web" horizontal/>
+
+  <Card title="Загрузка файлов" icon="upload" href="/admins/connectors/official/file" horizontal/>
+
+  <Card title="Braintrust" icon="flask" href="/admins/connectors/official/braintrust" horizontal/>
+</Columns>

@@ -1,0 +1,69 @@
+---
+title: "Discourse"
+description: "Доступ к знаниям из ваших **тем** (Topics) Discourse"
+---
+
+## Как это работает {#how-it-works}
+
+Коннектор Discourse индексирует документы из ваших **тем** (Topics) Discourse.
+
+## Настройка {#setting-up}
+
+### Авторизация {#authorization}
+
+<Steps>
+  <Step title="Войдите в Discourse">
+    Войдите в свой аккаунт Discourse
+
+    <Info>
+      У этого пользователя Discourse должны быть права администратора
+    </Info>
+  </Step>
+
+  <Step title="Откройте API keys">
+    Нажмите меню **Admin** на главной странице. Откройте подменю **Advanced** и выберите **API keys**.
+
+    <img className="rounded-image" src="/assets/admins/connectors/discourse/discourse_1.gif" alt="Переход администратора Discourse на страницу API keys"/>
+  </Step>
+
+  <Step title="Создайте API-ключ">
+    Нажмите **New API Key**, назовите его «Yahont». Выберите «All Users» для **User Level** и «Read-only» для **Scope**.
+
+    <img className="rounded-image" src="/assets/admins/connectors/discourse/discourse_2.gif" alt="Создание и заполнение API-ключа"/>
+  </Step>
+
+  <Step title="Сохраните и скопируйте ключ">
+    Нажмите **Save**. Скопируйте ключ и вставьте его в Yahont.
+
+    <img className="rounded-image" src="/assets/admins/connectors/discourse/discourse_3.gif" alt="Создание и копирование API-ключа"/>
+  </Step>
+
+  <Step title="Укажите имя пользователя для API-ключа">
+    В поле «API Key Username» введите имя пользователя аккаунта Discourse, у которого есть доступ к информации,
+    которую вы хотите проиндексировать.
+  </Step>
+</Steps>
+
+### Индексирование {#indexing}
+
+<Steps>
+  <Step title="Назовите коннектор">
+    Введите название коннектора (если вы планируете создать несколько коннекторов Discourse,
+    по нему вы сможете их различать)
+  </Step>
+
+  <Step title="Укажите базовый URL">
+    Укажите базовый URL вашего Discourse.
+
+    <img className="rounded-image" src="/assets/admins/connectors/discourse/discourse_4.gif" alt="Заполнение коннектора Yahont"/>
+  </Step>
+
+  <Step title="Введите темы для индексации">
+    Введите **темы** (Topics), которые хотите проиндексировать. Если оставить поле пустым,
+    будут проиндексированы все доступные темы.
+  </Step>
+
+  <Step title="Запустите индексацию">
+    Нажмите кнопку коннектора, чтобы начать индексацию указанных **тем**.
+  </Step>
+</Steps>

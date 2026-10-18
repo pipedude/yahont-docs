@@ -1,0 +1,244 @@
+---
+title: "Docker Compose"
+description: "Развёртывание песочниц Craft на доверенном хосте Docker"
+icon: "docker"
+---
+
+Docker Compose запускает по одному контейнеру-песочнице на каждого активного пользователя Craft.
+Используйте этот вариант для небольшого развёртывания Yahont на одном хосте, которому вы доверяете и которым управляете.
+
+<Tip>
+  Если Craft будут использовать больше нескольких человек, особенно одновременно,
+  лучше развернуть Craft в [Kubernetes](/deployment/local/craft_kubernetes).
+</Tip>
+
+<Warning>
+  Craft даёт API-серверу и фоновому контейнеру доступ на чтение и запись к сокету Docker.
+  Такой доступ фактически равен доступу root к хосту. Прокси песочниц получает доступ к сокету только на чтение.
+</Warning>
+
+## Требования {#requirements}
+
+- Полное развёртывание Yahont в Docker Compose
+- Docker Engine с Compose
+- Хост с ёмкостью для стека Yahont и активных контейнеров-песочниц
+- URL Yahont, доступный через прокси песочниц
+
+Craft не работает с оверлеем Yahont Lite для Compose.
+
+## Новое развёртывание {#new-deployment}
+
+Запустите установщик [Yahont CLI](/deployment/local/yahont_cli) с оверлеем Craft:
+
+```bash
+onyx-cli deploy install --include-craft
+```
+
+Установщик загружает `docker-compose.craft.yml`, включает Craft, выбирает бэкенд песочниц Docker,
+создаёт мостовую сеть песочниц и том CA прокси и запускает развёртывание.
+
+<Note>
+  В примерах ниже используется каталог развёртывания CLI по умолчанию. Для развёртывания,
+  созданного старой версией скрипта `install.sh`, замените `~/.config/onyx` каталогом `onyx_data` (например,
+  `onyx_data/deployment/.env`).
+</Note>
+
+Откройте `~/.config/onyx/deployment/.env` и задайте URL Yahont:
+
+```dotenv
+ONYX_SERVER_URL=https://yahont.example.com
+```
+
+Затем пересоздайте затронутые сервисы с обоими файлами Compose:
+
+```bash
+cd ~/.config/onyx/deployment
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.craft.yml \
+  up -d --force-recreate
+```
+
+## Существующее развёртывание {#existing-deployment}
+
+Задайте `ONYX_SERVER_URL` в `.env` существующего развёртывания, затем снова запустите установщик:
+
+```bash
+onyx-cli deploy install --include-craft
+```
+
+Установщик добавляет оверлей Craft и обновляет существующий `.env`:
+
+```dotenv
+ENABLE_CRAFT=true
+SANDBOX_BACKEND=docker
+```
+
+Одного `ENABLE_CRAFT=true` без оверлея недостаточно. Оверлей монтирует сокет Docker,
+запускает прокси песочниц и подключает API-сервер и фоновый рабочий процесс к сети песочниц.
+
+## Задайте URL Yahont {#set-the-onyx-url}
+
+Для продакшена используйте публичный HTTPS-URL, по которому пользователи открывают Yahont:
+
+```dotenv
+ONYX_SERVER_URL=https://yahont.example.com
+```
+
+Для локального Docker Desktop в macOS или Windows используйте порт хоста, выбранный установщиком:
+
+```dotenv
+ONYX_SERVER_URL=http://host.docker.internal:3000
+```
+
+В Linux используйте имя хоста или адрес хоста, доступный из контейнеров Docker. Имена сервисов Compose,
+такие как `api_server` и `nginx`, не разрешаются из изолированного моста песочниц.
+
+## Планирование ёмкости хоста {#plan-host-capacity}
+
+По умолчанию песочницы Docker получают по одному CPU и 2 ГБ памяти:
+
+```dotenv
+SANDBOX_DOCKER_CPU_LIMIT=1.0
+SANDBOX_DOCKER_MEMORY_LIMIT=2g
+```
+
+Закладывайте базовые сервисы Yahont плюс число пользователей, которые могут одновременно запускать Craft.
+Простаивающая песочница по умолчанию сохраняется в снимок и останавливается через 3600 секунд;
+измените это с помощью `SANDBOX_IDLE_TIMEOUT_SECONDS`,
+если нужна более быстрая очистка или более долгоживущие песочницы.
+
+Образ песочницы следует за `IMAGE_TAG`. Держите бэкенд Yahont и песочницу на одном релизе.
+В обычных развёртываниях не следует задавать `SANDBOX_CONTAINER_IMAGE` отдельно.
+
+## Сборка Craft из исходного кода {#build-craft-from-source}
+
+`docker compose up --build` собирает сервисы Yahont, объявленные в файлах Compose. Он не собирает образ песочницы Craft,
+потому что песочницы создаются API-сервером динамически, а не запускаются как сервис Compose.
+
+Из корня исходного репозитория Yahont отдельно соберите образ песочницы с локальным неизменяемым тегом:
+
+```bash
+docker build \
+  -t onyxdotapp/sandbox:local-source \
+  -f backend/onyx/server/features/build/sandbox/image/Dockerfile \
+  backend/onyx/server/features/build/sandbox/image
+```
+
+Задайте образ в `.env`, используемом вашим исходным репозиторием:
+
+```dotenv
+SANDBOX_CONTAINER_IMAGE=onyxdotapp/sandbox:local-source
+```
+
+Затем соберите и пересоздайте сервисы Yahont с оверлеем Craft:
+
+```bash
+cd deployment/docker_compose
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.craft.yml \
+  up -d --build --force-recreate
+```
+
+<Warning>
+  Не используйте `latest`, `edge` или `beta` для локально собранного образа песочницы.
+  API-сервер считает эти теги изменяемыми и пытается обновить их из реестра перед подготовкой.
+  Используйте тег вроде `local-source`.
+</Warning>
+
+Задание `IMAGE_TAG` не собирает соответствующий образ `onyxdotapp/sandbox:${IMAGE_TAG}`.
+Либо соберите этот тег песочницы отдельно, либо задайте `SANDBOX_CONTAINER_IMAGE` явно.
+Пересоздайте `api_server` и `background` после изменения настройки.
+Существующие контейнеры `sandbox-*` продолжают использовать образ, с которым были созданы,
+и для использования нового образа их нужно завершить и подготовить заново.
+
+Если вы запускаете из подготовленного каталога, например `onyx_data/deployment`,
+скопируйте настройку в `.env` этого каталога. В подготовленных каталогах развёртывания нет исходного репозитория,
+которого ожидают контексты сборки Compose, поэтому используйте уже собранные или опубликованные образы с `--no-build`.
+
+## Проверка развёртывания {#verify-the-deployment}
+
+Убедитесь, что основные сервисы и прокси работают:
+
+```bash
+cd ~/.config/onyx/deployment
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.craft.yml \
+  ps api_server background sandbox-proxy
+```
+
+После настройки модели и доступа пользователей отправьте запрос в Craft. Должен появиться контейнер-песочница:
+
+```bash
+docker ps --filter label=onyx.app/component=craft-sandbox
+```
+
+Сервис `background` включает рабочий процесс запланированных задач; отдельный сервис Compose не нужен.
+
+## Сеть и безопасность хоста {#network-and-host-security}
+
+Контейнеры-песочницы подключаются только к внешнему мосту `onyx_craft_sandbox`. Они не могут разрешать PostgreSQL,
+Redis, объектное хранилище или API-сервер по имени сервиса Compose.
+Их исходящий трафик HTTP и HTTPS проходит через `sandbox-proxy`,
+который применяет политики приложений и подставляет учётные данные после одобрения запроса.
+
+<Warning>
+  В облачных виртуальных машинах блокируйте доступ песочниц к сервису метаданных инстанса на уровне хоста или платформы.
+  В EC2 требуйте IMDSv2 с `HttpTokens=required` и примените правило брандмауэра хоста,
+  блокирующее трафик моста Docker к `169.254.169.254`.
+</Warning>
+
+Полную модель доверия и сети см. в разделе [Архитектура Craft](/security/architecture/craft).
+
+## Устранение неполадок {#troubleshooting}
+
+<AccordionGroup>
+  <Accordion title="Craft не появляется после изменения окружения">
+    Убедитесь, что заданы `ENABLE_CRAFT=true` и `SANDBOX_BACKEND=docker`,
+    затем пересоздайте API-сервер и веб-приложение. Включите в команду Compose оба файла:
+    `docker-compose.yml` и `docker-compose.craft.yml`.
+  </Accordion>
+
+  <Accordion title="Подготовка песочницы сообщает, что ONYX_SERVER_URL отсутствует">
+    Задайте значение в `.env` каталога развёртывания и пересоздайте API-сервер,
+    фоновый рабочий процесс и прокси песочниц с оверлеем Craft.
+  </Accordion>
+
+  <Accordion title="Настроенный URL Yahont использует имя хоста Compose">
+    Замените `api_server`, `nginx` или другое имя хоста, существующее только в Compose,
+    публичным URL Yahont или адресом хоста, доступным из контейнеров Docker.
+  </Accordion>
+
+  <Accordion title="Прокси песочниц нездоров">
+    Выполните `docker compose -f docker-compose.yml -f docker-compose.craft.yml logs sandbox-proxy`.
+    Проверьте `ONYX_SERVER_URL`, доступность PostgreSQL и Redis, том `sandbox_proxy_ca` и доступ к сокету Docker.
+  </Accordion>
+
+  <Accordion title="Сеть песочниц или том CA отсутствует">
+    Повторно выполните `onyx-cli deploy install --include-craft`. Если автоматическое создание не удалось,
+    создайте ресурсы и перезапустите развёртывание:
+
+    ```bash
+    docker network create onyx_craft_sandbox
+    docker volume create sandbox_proxy_ca
+    ```
+  </Accordion>
+
+  <Accordion title="Песочница завершается или убивается при больших задачах">
+    Проверьте журналы контейнера песочницы и нагрузку на память хоста.
+    Увеличивайте `SANDBOX_DOCKER_MEMORY_LIMIT` или `SANDBOX_DOCKER_CPU_LIMIT` только когда у хоста достаточно ёмкости
+    для каждой одновременной песочницы.
+  </Accordion>
+</AccordionGroup>
+
+<CardGroup cols={2}>
+  <Card title="Обзор развёртывания Craft" icon="hammer" href="/deployment/local/craft">
+    Сравните варианты Docker Compose и Kubernetes.
+  </Card>
+
+  <Card title="Управление Craft" icon="sliders" href="/admins/managing_features/craft">
+    Настройте модели и доступ пользователей после развёртывания.
+  </Card>
+</CardGroup>

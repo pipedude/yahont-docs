@@ -1,0 +1,205 @@
+---
+title: "EKS"
+description: "Развёртывание Yahont на AWS EKS"
+---
+
+import DeploymentNextSteps from "/snippets/deployment-next-steps.mdx"
+
+<Warning>
+  EKS недавно обновил процесс создания кластеров и групп узлов. Содержимое этого руководства остаётся актуальным,
+  но процесс немного изменился.
+
+  Обновления этого руководства скоро будут.
+</Warning>
+
+<Tip>
+  Чтобы создать кластер EKS, RDS, ElastiCache и S3 с помощью кода,
+  используйте [модули Terraform](/deployment/local/terraform).
+</Tip>
+
+## Руководство {#guide}
+
+<Steps>
+  <Step title="Установите требования">
+    Для EKS нужны AWS CLI и kubectl CLI.
+
+    - Скачайте и установите [AWS CLI](https://aws.amazon.com/cli/)
+    - Скачайте и установите [kubectl CLI](https://kubernetes.io/docs/tasks/tools/install-kubectl-macos/)
+  </Step>
+
+  <Step title="Создайте кластер">
+    В этом руководстве мы используем стандартные настройки с драйвером EBS CSI.
+
+    - Откройте Elastic Kubernetes Service (EKS) и создайте новый кластер
+    - Для **Cluster service role** создайте новую роль IAM с понятным именем, например `onyx-eks-cluster-role`
+
+    <Note>
+      Если вы не видите созданную роль в раскрывающемся списке, нажмите кнопку обновления в интерфейсе.
+    </Note>
+
+    - Для **Kubernetes version** выберите версию со стандартной поддержкой
+    - Выберите политику обновления **Standard**
+    - Добавьте дополнение **Amazon EBS CSI Driver** для `Persistent Volume Claims` Yahont
+    - Оставьте остальные дополнения по умолчанию включёнными
+    - Проверьте и нажмите **Create**
+
+    Кластеру может потребоваться несколько минут, чтобы стать готовым
+
+    <img className="rounded-image" src="/assets/deployment/eks_cluster_create.png" alt="Создание кластера EKS"/>
+  </Step>
+
+  <Step title="Добавьте узлы">
+    Когда кластер станет активным, добавьте рабочие узлы, на которых будут работать сервисы Yahont.
+
+    - На странице **Cluster** откройте вкладку **Compute** и нажмите **Add node group**
+    - Укажите **Name** группы (например, `onyx-node-group`)
+    - Для **Node IAM role** выберите существующую роль, используемую вашей организацией, или создайте
+    новую.
+
+    <Note>
+      Убедитесь, что к роли прикреплена `AmazonEBSCSIDriverPolicy`, чтобы PVC могли быть выполнены.
+      Если вы создаёте роль, добавьте эту политику в дополнение к политикам по умолчанию.
+    </Note>
+
+    - Замените **Instance types** машинами `c5.2xlarge` (или `c5.4xlarge`, если планируете масштабироваться свыше 100 тыс. документов)
+    - Задайте **Volume size** в диапазоне 200–800 ГБ в зависимости от числа документов
+
+    <Tip>
+      Подробности о требованиях к хранилищу см. в [руководстве по ресурсам](/deployment/getting_started/resourcing).
+    </Tip>
+
+    - В большинстве случаев задайте **Desired size** и **Minimum size** равными 1. Позже их можно увеличить
+    для масштабирования.
+    - **Maximum unavailable** можно оставить по умолчанию
+    - Оставьте сетевую конфигурацию по умолчанию и нажмите **Create**
+
+    Вычислительным узлам может потребоваться до 15 минут, чтобы появиться в сети.
+  </Step>
+
+  <Step title="Создайте и подключите пользователя">
+    Нам понадобится пользователь IAM с доступом к CLI для управления AWS и кластером.
+
+    - Откройте [панель IAM](https://console.aws.amazon.com/iam/), выберите **Users** на левой боковой панели и нажмите **Create user**
+    - Дайте пользователю понятное имя (например, `onyx-eks-user`)
+    - В разделе прав нажмите **Attach policies directly** и прикрепите:
+    - `AmazonEKSClusterPolicy`
+    - `AmazonEKSServicePolicy`
+    - Нажмите **Create user**
+
+    - На странице пользователя нажмите **Create access key** и следуйте подсказкам.
+    - При создании выберите вариант **Command Line Interface (CLI)**.
+
+    <Tip>
+      Сохраните **Access key** и **Secret access key** на потом!
+    </Tip>
+
+    - Вернитесь к кластеру EKS, выберите **Access**, затем **Create access entry**
+    - В **IAM principal** выберите созданный нами ARN IAM и нажмите **Next**
+    - В Access policies задайте **Policy name** равным `AmazonEKSClusterAdminPolicy`, затем нажмите **Next** и **Create**
+  </Step>
+
+  <Step title="Получите kubeconfig">
+    Войдите в AWS CLI и укажите ключ доступа и секретный ключ созданного нами пользователя IAM:
+
+        ```bash
+        aws configure
+        ```
+
+    Настройте kubeconfig для подключения к кластеру, указав `region-code` и `cluster-name`:
+
+        ```bash
+        aws eks update-kubeconfig --region region-code --name cluster-name
+        ```
+
+    <Info>
+      См. [документацию AWS EKS по kubeconfig](https://docs.aws.amazon.com/eks/latest/userguide/create-kubeconfig.html).
+    </Info>
+  </Step>
+
+  <Step title="Установите сервисы Yahont">
+    Helm-чарт Yahont упаковывает все необходимые сервисы (API, веб, PostgreSQL, OpenSearch и т. д.)
+    в единое развёртывание. По умолчанию для сервисов с состоянием создаются постоянные тома.
+
+    Сначала убедитесь, что класс хранилища `gp2` задан классом хранилища по умолчанию (требуется для PVC):
+
+        ```bash
+        kubectl patch storageclass gp2 -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+        ```
+
+    Добавьте репозиторий Helm Yahont:
+
+        ```bash
+        helm repo add onyx https://onyx-dot-app.github.io/onyx/
+        helm repo update
+        helm search repo onyx
+        ```
+
+    Создайте отдельное пространство имён и установите Yahont:
+
+        ```bash
+        kubectl create namespace onyx
+        helm install onyx onyx/onyx -n onyx
+        ```
+
+    Это загрузит последний чарт Yahont и развернёт все зависимости.
+  </Step>
+
+  <Step title="Проверьте установку">
+        ```bash
+        helm list -n onyx
+        kubectl get pods -n onyx
+        ```
+
+    Дождитесь, пока все поды перейдут в состояние `Running`, прежде чем обращаться к Yahont.
+
+    Чтобы проверить журналы API-сервера (он часто последним становится готов):
+
+        ```bash
+        kubectl -n onyx get pods | grep api-server | awk '{print $1}' | xargs -I {} kubectl -n onyx logs {} -f
+        ```
+  </Step>
+
+  <Step title="Откройте Yahont">
+    Для локального тестирования используйте port-forward:
+
+        ```bash
+        kubectl -n onyx port-forward service/onyx-nginx 8080:80
+        ```
+
+    Затем откройте [http://localhost:8080](http://localhost:8080).
+  </Step>
+</Steps>
+
+## Обновление {#upgrading}
+
+Чтобы обновить сервисы Yahont, сначала обновите репозиторий Helm:
+
+```bash
+helm repo update
+helm upgrade onyx onyx/onyx -n onyx
+```
+
+Чтобы обновить до конкретной версии, используйте:
+
+```bash
+helm upgrade onyx onyx/onyx -n onyx --version <VERSION>
+```
+
+## Удаление {#uninstalling}
+
+Чтобы удалить сервисы Yahont:
+
+```bash
+helm uninstall onyx -n onyx
+```
+
+OpenSearch, Postgres и MinIO оставляют после себя PVC. Чтобы удалить их:
+
+```bash
+kubectl -n onyx get pvc
+kubectl -n onyx delete pvc onyx-opensearch-master-onyx-opensearch-master-0
+kubectl -n onyx delete pvc onyx-minio
+kubectl -n onyx delete pvc data-onyx-postgresql-0
+```
+
+<DeploymentNextSteps />

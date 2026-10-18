@@ -1,0 +1,39 @@
+---
+title: "Productboard"
+description: "Доступ к отзывам о продукте и функциям из Productboard"
+---
+
+## Как это работает {#how-it-works}
+
+Коннектор Productboard загружает в Yahont все `Features`, `Components`, `Products` и `Objectives`.
+Сейчас API Productboard не поддерживает загрузку `Releases` и `Notes`.
+
+Всё обновляется каждые **10** минут.
+
+## Настройка {#setting-up}
+
+### Авторизация {#authorization}
+
+<Steps>
+  <Step title="Получите токен доступа">
+    Выполните шаги руководства `Getting a token`
+    [здесь](https://developer.productboard.com/#section/Authentication/Public-API-Access-Token),
+    чтобы получить Access Token.
+  </Step>
+</Steps>
+
+### Индексирование {#indexing}
+
+<Steps>
+  <Step title="Откройте коннектор Productboard">
+    Откройте панель администратора и выберите коннектор **Productboard**
+  </Step>
+
+  <Step title="Введите токен доступа">
+    На **шаге 1** укажите ваш **Access Token**
+  </Step>
+
+  <Step title="Запустите индексацию">
+    Нажмите `Подключить`, чтобы начать индексацию
+  </Step>
+</Steps>

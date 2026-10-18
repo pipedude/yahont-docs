@@ -1,0 +1,75 @@
+---
+title: "Azure OpenAI"
+description: "Настройка Azure OpenAI для моделей GPT корпоративного уровня"
+icon: "microsoft"
+---
+
+import NavigateToAiModels from "/snippets/navigate-to-ai-models.mdx";
+import StandardAiModelConfigs from "/snippets/standard-ai-model-configs.mdx";
+
+## Руководство {#guide}
+
+<Steps>
+  <Step title="Откройте ресурсы Azure Portal">
+    Откройте [Azure Portal](https://portal.azure.com/) и перейдите к службе Azure OpenAI Service.
+
+    <img className="rounded-image" src="/assets/admins/ai_models/azure_oai_service.png" alt="Служба Azure OpenAI"/>
+  </Step>
+
+  <Step title="Создайте развёртывание Azure OpenAI">
+    Нажмите **Создать** и заполните обязательные поля в каждом разделе. Обычно достаточно значений по умолчанию.
+
+    Развёртывание может занять несколько минут.
+
+    <img className="rounded-image" src="/assets/admins/ai_models/azure_oai_deployment.png" alt="Развёртывание Azure OpenAI"/>
+  </Step>
+
+  <Step title="Создайте развёртывание модели">
+    Откройте [Azure OpenAI Service](https://oai.azure.com/) и выберите свой новый ресурс ИИ.
+
+    Перейдите на вкладку **Каталог моделей** и выберите модель, которую хотите использовать с Yahont.
+    Нажмите **Использовать эту модель** → **Развернуть на выбранном ресурсе**.
+
+    <img className="rounded-image" src="/assets/admins/ai_models/azure_oai_deployed_home.png" alt="Стартовая страница службы Azure OpenAI"/>
+
+    <img className="rounded-image" src="/assets/admins/ai_models/azure_oai_deploy_model.png" alt="Развёртывание модели Azure OpenAI"/>
+  </Step>
+
+  <Step title="Сохраните сведения о развёртывании и учётные данные">
+    На странице развёрнутой модели сохраните **Target URI** и **API-ключ**. В **Target URI** содержатся **API Base**,
+    **API Version** и **Deployment Name**, необходимые для настройки поставщика в Yahont.
+
+    <img className="rounded-image" src="/assets/admins/ai_models/azure_oai_deployed_model_details.png" alt="Сведения о развёрнутой модели Azure OpenAI"/>
+
+    <Warning>
+      Если в ответах чата Yahont вы видите `I'm sorry, but I cannot assist with that request`,
+      измените **Фильтр содержимого** в развёртывании модели с **DefaultV2** на **Default**.
+
+      <img className="rounded-image" src="/assets/admins/ai_models/azure_oai_content_filter.png" alt="Страница настройки Azure OpenAI"/>
+    </Warning>
+  </Step>
+
+  <NavigateToAiModels />
+
+  <Step title="Настройте поставщика Azure OpenAI">
+    Выберите **Azure OpenAI** среди доступных поставщиков.
+
+    Задайте этой конфигурации **отображаемое имя**.
+
+    Вставьте **API-ключ** в поле **API-ключ**.
+
+    Из своего **Target URI** выделите **API Base**, **API Version** и **Deployment Name**
+
+    Пример:
+    `https://yahontazureai.openai.azure.com/openai/deployments/gpt-4.1/chat/completions?api-version=2025-01-01-preview`
+
+    <img className="rounded-image" src="/assets/admins/ai_models/azure_oai_provider_config.png" alt="Настройка поставщика Azure OpenAI"/>
+  </Step>
+
+  <Step title="Настройте доступ к поставщику">
+    В разделе **Расширенные параметры** можно выбрать, будет ли поставщик публичным для всех пользователей Yahont.
+
+    Если выбран приватный режим, модели поставщика будут доступны администраторам и группам пользователей,
+    которым вы явно назначите поставщика.
+  </Step>
+</Steps>

@@ -1,0 +1,94 @@
+---
+title: "ClickUp"
+description: "'Доступ к задачам из ClickUp'"
+---
+
+## Как это работает {#how-it-works}
+
+Коннектор ClickUp получает все задачи из рабочего пространства ClickUp или из конкретных пространств, списков и папок,
+указанных пользователем.
+
+Задачи обновляются каждые **10** минут.
+
+## Иерархия ClickUp {#understanding-clickup-hierarchy}
+
+В ClickUp есть несколько контейнеров, в которых находятся задачи. Это могут быть:
+* Всё рабочее пространство (Workspace)
+* Пространства (Spaces)
+* Папки (Folders)
+* Списки (Lists)
+
+Подробнее об иерархии перечисленных объектов написано
+[здесь](https://help.clickup.com/hc/en-us/articles/13856392825367-Intro-to-the-Hierarchy)
+
+<img className="rounded-image" src="/assets/admins/connectors/clickup/ClickUp_Hierarchy.gif" alt="Иерархия рабочего пространства ClickUp: пространства, папки и списки"/>
+
+## Настройка {#setting-up}
+
+### Авторизация {#authorization}
+
+<Steps>
+  <Step title="Войдите в ClickUp">
+    Войдите в ClickUp.
+  </Step>
+
+  <Step title="Откройте настройки Apps">
+    В ClickUp 2.0 нажмите свой аватар в левом нижнем углу и выберите **Apps**.
+    В ClickUp 3.0 нажмите свой аватар в правом верхнем углу, выберите **Settings** и прокрутите вниз,
+    чтобы нажать **Apps** на боковой панели.
+  </Step>
+
+  <Step title="Сгенерируйте API-токен">
+    В разделе API Token нажмите **Generate**. Будет создан и показан персональный API-токен!
+
+    <img className="rounded-image" src="/assets/admins/connectors/clickup/ClickupToken.png" alt="Создание токена ClickUp"/>
+  </Step>
+</Steps>
+
+<img className="rounded-image" src="/assets/admins/connectors/clickup/ClickupToken.png" alt="Создание токена ClickUp"/>
+
+### Индексирование {#indexing}
+
+<Steps>
+  <Step title="Откройте коннектор ClickUp">
+    Откройте панель администратора и выберите коннектор **ClickUp**
+  </Step>
+
+  <Step title="Введите API-токен и Team ID">
+    На **шаге 1** укажите ваш **API Token** и **Team ID** из раздела выше.
+
+    <img className="rounded-image" src="/assets/admins/connectors/clickup/ClickupAuth.png" alt="Аутентификация коннектора ClickUp"/>
+  </Step>
+
+  <Step title="Выберите тип коннектора">
+    Выберите тип коннектора, из которого нужно получать задачи.
+
+    **Примечания**
+    * Это может быть всё рабочее пространство (Entire Workspace), пространства (Space(s)), списки (List(s))
+    или папки (Folder(s)).
+    * Чтобы получать задачи из всего рабочего пространства, просто выберите Entire Workspace в раскрывающемся списке
+    и не добавляйте никаких ID. and do not add any ID(s).
+    * Чтобы получать задачи из конкретных пространств, папок или списков,
+    выберите соответствующий вариант в раскрывающемся списке и добавьте ID ниже.
+    В этом случае нужно добавить хотя бы один ID.
+    * ID пространств, папок и списков можно найти в веб-адресе в ClickUp.
+    Например, если открыть **список** в интерфейсе ClickUp, ID списка будет в адресной строке следующим образом:
+
+    <img className="rounded-image" src="/assets/admins/connectors/clickup/ClickupListid.png" alt="ID списка ClickUp"/>
+  </Step>
+
+  <Step title="Введите ID при необходимости">
+    Если выбран тип коннектора Space(s), List(s) или Folder(s), добавьте один или несколько соответствующих ID,
+    откуда нужно индексировать задачи.
+  </Step>
+
+  <Step title="Выберите индексацию комментариев">
+    Отметьте **Retrieve Task Comments?**,
+    чтобы также получать и индексировать все комментарии к каждой проиндексированной задаче. Оставьте неотмеченным,
+    если комментарии к задачам индексировать не нужно.
+  </Step>
+
+  <Step title="Запустите индексацию">
+    Нажмите `Подключить`, чтобы начать индексацию.
+  </Step>
+</Steps>

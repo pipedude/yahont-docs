@@ -1,0 +1,76 @@
+---
+title: "S3: Assume Role"
+description: "Этот метод автоматически использует роль IAM, прикреплённую к вашему инстансу EC2, для доступа к корзинам S3. Вводить учётные данные вручную не нужно."
+---
+
+### Предварительные требования {#prerequisites}
+
+- Убедитесь, что к вашему инстансу EC2 прикреплена роль IAM.
+- Проверьте, что профиль инстанса настроен правильно, в консоли AWS в разделе **EC2 › Instance Settings
+  › Attach/Replace IAM role**.
+
+### Обновление существующей роли IAM {#updating-the-existing-iam-role}
+
+Поскольку к вашему инстансу EC2 уже прикреплена роль IAM, нужно обновить её, добавив необходимые права S3:
+
+<Steps>
+  <Step title="Откройте роль в IAM">
+    В консоли AWS откройте **IAM › Roles** и найдите существующую роль вашего инстанса EC2.
+  </Step>
+
+  <Step title="Прикрепите политику S3">
+    Нажмите на роль и откройте вкладку **Permissions**. Нажмите **Add permissions › Attach policies**.
+    Найдите и выберите политику **AmazonS3ReadOnlyAccess**. Нажмите **Attach policies**.
+  </Step>
+</Steps>
+
+Либо для более детального контроля можно создать пользовательскую встроенную политику:
+
+<Steps>
+  <Step title="Создайте встроенную политику">
+    На той же вкладке **Permissions** роли нажмите **Add permissions › Create inline policy**.
+    Переключитесь на JSON и добавьте эту политику (замените `your-source-bucket-name`):
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Action": [
+           "s3:GetObject",
+           "s3:ListBucket"
+         ],
+         "Resource": [
+           "arn:aws:s3:::your-source-bucket-name",
+           "arn:aws:s3:::your-source-bucket-name/*"
+         ]
+       }
+     ]
+   }
+   ```
+
+    Назовите политику (например, `OnyxS3Access`) и нажмите **Create policy**.
+  </Step>
+</Steps>
+
+Коннектор автоматически обнаружит и будет использовать роль IAM инстанса EC2 для доступа к вашим корзинам S3.
+
+### Ввод учётных данных в Yahont {#credential-entry-in-onyx}
+
+При настройке коннектора S3 в Yahont нужно:
+
+<Steps>
+  <Step title="Откройте вкладку Assume Role">
+    Нажмите на вкладку **Assume Role**
+  </Step>
+
+  <Step title="Учётные данные не требуются">
+    Учётные данные вводить не нужно — коннектор автоматически использует роль, прикреплённую к вашему инстансу EC2.
+  </Step>
+</Steps>
+
+<img className="rounded-image" src="/assets/admins/connectors/blob/s3/onyx-assume-role.png" alt="Снимок экрана настройки Assume Role для S3 в Yahont"/>
+
+После обновления роли вашего инстанса EC2 правами S3 перейдите к [шагам индексации в обзоре](./overview#indexing),
+чтобы настроить коннектор S3.

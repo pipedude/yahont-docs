@@ -1,0 +1,160 @@
+---
+title: "Внешние сервисы"
+description: "Запуск Yahont в Kubernetes с управляемыми PostgreSQL, Redis, OpenSearch и объектным хранилищем"
+icon: "database"
+---
+
+По умолчанию Helm-чарт Yahont устанавливает PostgreSQL, Redis, OpenSearch, MinIO, Code Interpreter и NGINX.
+Для продакшена можно отключить каждый встроенный сервис и подключить Yahont к управляемому сервису.
+
+## Переключатели чарта {#chart-toggles}
+
+| Ключ | По умолчанию | Когда задано `false` |
+| --- | --- | --- |
+| `postgresql.enabled` | `true` | Чарт не создаёт `Cluster` CloudNativePG (CNPG), оператор или CRD. |
+| `postgresqlOperator.enabled` | Следует `postgresql.enabled` | Чарт сохраняет свой `Cluster`, но его должен обрабатывать существующий оператор CNPG. |
+| `postgresql.installCRDs` | Следует переключателю оператора | Чарт не устанавливает CRD CNPG. Используйте, чтобы управлять CRD отдельно. |
+| `redis.enabled` | `true` | Чарт не создаёт Redis или оператор Redis. |
+| `redisOperator.enabled` | Следует `redis.enabled` | Чарт сохраняет свой Redis, но его должен обрабатывать существующий оператор. |
+| `opensearch.enabled` | `true` | Чарт не создаёт OpenSearch. |
+| `minio.enabled` | `true` | Чарт не создаёт MinIO. |
+| `codeInterpreter.enabled` | `true` | Чарт не создаёт Code Interpreter. |
+| `nginx.enabled` | `true` | Чарт не создаёт контроллер ingress-nginx. |
+
+`postgresqlOperator` и `redisOperator` отсутствуют в `values.yaml` по умолчанию. Добавьте их в свой файл значений,
+когда они нужны. Существующий оператор Redis должен предоставлять CRD `redis.redis.opstreelabs.in/v1beta2`.
+
+<Warning>
+  Не задавайте `vectorDB.enabled: false` только ради внешнего OpenSearch. Этот ключ отключает индексацию, коннекторы,
+  сервер модели индексации и все рабочие процессы Celery.
+  Используйте его только для [Yahont Lite](/deployment/configuration/configuration#onyx-lite).
+</Warning>
+
+## Пример только для приложения {#application-only-example}
+
+Этот пример запускает в Kubernetes только приложение Yahont. Он предполагает:
+- Существуют управляемые PostgreSQL, Redis, OpenSearch и S3, и поды могут к ним обратиться.
+- Secrets, указанные в `auth`, существуют в пространстве имён релиза.
+- Ваш собственный ingress-контроллер направляет трафик в Yahont.
+
+```yaml values.yaml
+postgresql:
+  enabled: false
+redis:
+  enabled: false
+opensearch:
+  enabled: false
+minio:
+  enabled: false
+nginx:
+  enabled: false
+
+configMap:
+  POSTGRES_HOST: "onyx-db.example.internal"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "onyx"
+  REDIS_HOST: "onyx-cache.example.internal"  # No underscores; they are not valid in DNS names
+  REDIS_PORT: "6379"
+  OPENSEARCH_HOST: "onyx-search.example.internal"  # Host name only, no https://
+  OPENSEARCH_REST_API_PORT: "443"
+  S3_FILE_STORE_BUCKET_NAME: "onyx-files"
+  AWS_REGION_NAME: "us-east-1"
+
+auth:
+  postgresql:
+    existingSecret: "onyx-postgres"     # Keys: username, password
+  redis:
+    existingSecret: "onyx-redis"        # Key: redis_password
+  opensearch:
+    existingSecret: "onyx-opensearch"   # Keys: opensearch_admin_username, opensearch_admin_password
+  objectstorage:
+    existingSecret: "onyx-s3"           # Keys: s3_aws_access_key_id, s3_aws_secret_access_key
+```
+
+Чарт задаёт `POSTGRES_HOST`, `REDIS_HOST`, `OPENSEARCH_HOST` и `S3_ENDPOINT_URL` только для встроенных сервисов.
+Когда вы отключаете сервис, нужно задать его параметры подключения в `configMap`. Храните пароли в Secrets,
+а не в `configMap`. См. [Усиление безопасности](/deployment/production/security#credentials).
+
+### Примечания по сервисам {#per-service-notes}
+
+<AccordionGroup>
+  <Accordion title="PostgreSQL">
+    - Пользователь базы данных должен иметь право создавать таблицы.
+    API-сервер выполняет миграции базы данных при запуске.
+    - Для TLS с проверкой сертификата задайте `postgresTls.enabled: true` и укажите CA в
+    `postgresTls.caSecretName` или `postgresTls.caConfigMapName`.
+    - Для Amazon RDS см. [руководство по RDS](/deployment/cloud/aws/rds).
+    - Для Cloud SQL for PostgreSQL задайте в `POSTGRES_DB` созданную вами базу данных. Если этого не сделать,
+    Yahont использует базу данных `postgres`. См. [руководство по GCP](/deployment/cloud/gcp#gke-with-terraform).
+  </Accordion>
+
+  <Accordion title="Redis">
+    - Для TLS с проверкой сертификата задайте `redisTls.enabled: true` и укажите CA в
+    `redisTls.caSecretName` или `redisTls.caConfigMapName`. Встроенный Redis не поддерживает TLS.
+    - Если у управляемого Redis нет пароля, задайте `auth.redis.enabled: false`.
+    - Yahont использует базы данных Redis 0, 14 и 15.
+    Используйте сервис Redis с одной основной конечной точкой и 16 базами по умолчанию,
+    например Memorystore for Redis или ElastiCache for Redis с выключенным режимом кластера.
+    Сервисы Redis Cluster разносят ключи по шардам, и Celery тогда завершается ошибками `CROSSSLOT`.
+    - Memorystore for Redis с шифрованием при передаче работает по TLS на порту `6378`. Задайте `REDIS_PORT: "6378"` и включите
+    `redisTls` с CA Memorystore.
+  </Accordion>
+
+  <Accordion title="OpenSearch">
+    - Для Amazon OpenSearch Service и других управляемых настроек
+    см. [руководство по OpenSearch](/deployment/local/opensearch).
+  </Accordion>
+
+  <Accordion title="Object storage">
+    - Для S3-совместимого хранилища, не являющегося AWS, также задайте `configMap.S3_ENDPOINT_URL`.
+    - Если поды используют облачную роль IAM для S3, задайте `auth.objectstorage.enabled: false` и не указывайте ключи доступа.
+    - Чтобы использовать Azure Blob Storage, задайте `configMap.FILE_STORE_BACKEND: "azure"` и ключи `AZURE_*` в `configMap`.
+    - Чтобы использовать Google Cloud Storage, задайте `configMap.FILE_STORE_BACKEND: "gcs"`, `configMap.GCS_FILE_STORE_BUCKET_NAME`
+    и `configMap.GCS_PROJECT_ID`.
+    При GKE Workload Identity задайте `serviceAccount.name` равным сервисному аккаунту Kubernetes с ролями
+    `roles/storage.objectAdmin` и `roles/storage.legacyBucketReader` для бакета. Yahont читает бакет при запуске,
+    поэтому ему нужны обе роли. См. [руководство по GCP](/deployment/cloud/gcp#gke-with-terraform).
+    - Все переменные файлового хранилища см. в разделе
+    [Конфигурация файлового хранилища](/deployment/configuration/configuration#onyx-environment-variables).
+  </Accordion>
+
+  <Accordion title="Code Interpreter">
+    - Чтобы запускать Code Interpreter отдельным релизом, задайте `codeInterpreter.enabled: false` и задайте
+    `configMap.CODE_INTERPRETER_BASE_URL` равным URL его Service. См.
+    [Интерпретатор кода](/deployment/production/code_interpreter#install-the-code-interpreter-chart-directly).
+  </Accordion>
+
+  <Accordion title="NGINX">
+    - При `nginx.enabled: false` ваш ingress должен удалять префикс `/api` до того, как запросы дойдут до Service API.
+    Встроенный NGINX делает это.
+    - `ingress.enabled: true` создаёт объекты Ingress, использующие аннотации ingress-nginx и cert-manager.
+    - Встроенный NGINX также маршрутизирует пути SAML и MCP. Прочитайте `templates/nginx-conf.yaml` в чарте, прежде чем
+    заменять его.
+  </Accordion>
+</AccordionGroup>
+
+## Кто за что отвечает {#who-owns-what}
+
+Чарт не настраивает резервное копирование ни для одного встроенного сервиса.
+
+| Сервис | Встроен в чарт | Внешний (управляемый) |
+| --- | --- | --- |
+| PostgreSQL | Вы отвечаете за резервные копии, восстановление, рост хранилища и обновления CNPG и PostgreSQL. | Провайдер отвечает за резервные копии и патч-обновления. Вы отвечаете за проверки восстановления и мажорные обновления. |
+| Redis | Нет постоянного хранения. Данные — это кэш и очереди задач. Перезапуск теряет задачи в очереди. | Провайдер отвечает за доступность и обновления. |
+| OpenSearch | Вы отвечаете за снимки, рост диска и обновления. Индекс можно перестроить из источников, но это медленно. | Провайдер отвечает за снимки и обновления. |
+| MinIO или объектное хранилище (S3, Cloud Storage, Azure Blob Storage) | Вы отвечаете за резервные копии загруженных файлов. Эти файлы нельзя перестроить из источников. | Провайдер отвечает за надёжность. Вы отвечаете за версионирование и политику резервного копирования. |
+
+Для каждого внешнего сервиса вы должны убедиться, что его версия работает с вашей версией Yahont.
+Сначала проверяйте обновления в тестовой среде.
+
+## Удаление {#uninstall}
+
+<Warning>
+  При встроенных PostgreSQL или Redis `helm uninstall` запускает хук очистки.
+  Хук удаляет **каждый** `Cluster` CNPG и каждый ресурс Redis в пространстве имён релиза,
+  а не только ресурсы этого релиза. Затем CNPG удаляет тома PostgreSQL, и база данных теряется.
+
+  - Сделайте резервную копию базы данных перед удалением.
+  - Устанавливайте Yahont в отдельное пространство имён.
+  - Используйте внешний PostgreSQL, если данные должны пережить релиз.
+</Warning>

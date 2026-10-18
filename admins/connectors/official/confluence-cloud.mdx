@@ -1,0 +1,147 @@
+---
+title: "Confluence Cloud"
+description: "Подключение сайта Confluence, размещённого Atlassian, к Yahont"
+---
+
+Используйте это руководство, когда ваш сайт Confluence размещает Atlassian.
+Его URL обычно заканчивается на `atlassian.net/wiki`.
+
+## Перед началом {#before-you-begin}
+
+Используйте для коннектора отдельный аккаунт Atlassian. Это сохраняет стабильный доступ,
+когда сотрудники меняют роли или уходят.
+Предоставьте аккаунту доступ к продукту и право просмотра каждого пространства и ограниченной страницы,
+которые вы хотите индексировать. API-токен никогда не даёт аккаунту больше доступа, чем у него есть в Confluence.
+
+Подробности смотрите в [модели прав Confluence
+Cloud](https://support.atlassian.com/confluence-cloud/docs/what-are-confluence-cloud-permissions-and-restrictions/)
+и [руководстве по ограничениям
+страниц](https://support.atlassian.com/confluence-cloud/docs/add-or-remove-page-restrictions/) от Atlassian.
+
+## Выбор метода аутентификации {#choose-an-authentication-method}
+
+### OAuth в Yahont Cloud {#onyx-cloud-oauth}
+
+Если на экране учётных данных есть **Authorize with Confluence**, выберите его. Подтвердите экран согласия Atlassian,
+затем выберите сайт Confluence.
+Yahont сохраняет токен обновления и автоматически продлевает короткоживущие токены доступа.
+
+OAuth — самый простой вариант в Yahont Cloud.
+Это не стандартный способ учётных данных для Yahont с самостоятельным размещением.
+Используйте API-токен для Yahont с самостоятельным размещением или когда кнопка авторизации недоступна.
+
+### API-токен Atlassian {#atlassian-api-token}
+
+Можно создать токен без областей или с областями. Atlassian рекомендует токены с областями.
+Yahont поддерживает оба типа, но флажок в Yahont должен соответствовать типу токена.
+
+<Steps>
+  <Step title="Откройте безопасность аккаунта Atlassian">
+    Войдите как аккаунт коннектора и откройте [API-токены аккаунта
+    Atlassian](https://id.atlassian.com/manage-profile/security/api-tokens).
+
+    ![На странице API Tokens в Atlassian есть отдельные кнопки для обычных и ограниченных
+    токенов](/assets/admins/connectors/confluence/atlassian-api-tokens.jpg)
+  </Step>
+
+  <Step title="Создайте токен">
+    Выберите кнопку для вашего типа токена:
+
+    - Для токена с областями выберите **Create API token with scopes**. Выберите Confluence, задайте срок действия
+    и добавьте области чтения на следующем шаге.
+    - Для токена без областей выберите **Create API token** и задайте метку.
+
+    Срок действия API-токенов Atlassian — от 1 до 365 дней.
+    Запишите дату истечения и запланируйте замену токена до её наступления. См.
+    [инструкции по
+    API-токенам](https://support.atlassian.com/atlassian-account/docs/manage-api-tokens-for-your-atlassian-account/)
+    от Atlassian.
+  </Step>
+
+  <Step title="Предоставьте доступ токену с областями">
+    Для токена с областями предоставьте эквивалентный доступ на чтение Confluence, который использует Yahont:
+
+    - `read:confluence-space.summary`
+    - `read:confluence-props`
+    - `read:confluence-content.all`
+    - `read:confluence-content.summary`
+    - `read:confluence-content.permission`
+    - `read:confluence-user`
+    - `read:confluence-groups`
+    - `read:space:confluence`
+    - `readonly:content.attachment:confluence`
+    - `search:confluence`
+    - `read:attachment:confluence`
+    - `read:content-details:confluence`
+
+    Эти области позволяют Yahont читать пространства, страницы, комментарии, вложения, ограничения,
+    пользователей и группы. Они не отменяют права учётной записи коннектора в Confluence. См.
+    [справочник областей
+    Confluence](https://developer.atlassian.com/cloud/confluence/scopes-for-oauth-2-3LO-and-forge-apps/) от Atlassian.
+
+    ![Выбор областей Confluence в Atlassian с фильтром по областям
+    чтения](/assets/admins/connectors/confluence/atlassian-scopes.jpg)
+
+    На снимке экрана показаны некоторые области чтения. Выберите все области из списка выше.
+  </Step>
+
+  <Step title="Скопируйте токен">
+    Создайте и скопируйте токен. Atlassian показывает значение токена один раз. Храните его в менеджере секретов,
+    пока не добавите в Yahont.
+  </Step>
+</Steps>
+
+## Добавьте учётные данные Cloud в Yahont {#add-the-cloud-credential-to-onyx}
+
+Откройте **Панель администратора > Коннекторы > Confluence**, нажмите **Создать** и введите:
+
+- **Name**: понятное название, например `Confluence Cloud - docs account`.
+- **Confluence Username**: адрес электронной почты аккаунта Atlassian коннектора.
+- **Confluence Access Token**: API-токен.
+
+![Диалог учётных данных Confluence в Yahont](/assets/admins/connectors/confluence/credential-form.jpg)
+
+Для обоих типов токенов Yahont использует адрес электронной почты аккаунта и токен как базовую аутентификацию HTTP.
+С токеном с областями Yahont направляет запросы API Confluence через API-шлюз Atlassian.
+
+## Настройка коннектора Cloud {#configure-the-cloud-connector}
+
+Выберите учётные данные, нажмите **Продолжить** и настройте следующие поля:
+
+- Включите **Is Cloud**.
+- Задайте **Wiki Base URL** как `https://your-domain.atlassian.net/wiki`. Оставьте `/wiki` в URL.
+- Включайте **Using scoped token** только если вы создали токен с областями.
+- Выберите область индексации и настройку вложений, описанные в [обзоре Confluence](./confluence).
+
+![Коннектор Confluence Cloud,
+настроенный в Yahont с токеном без областей](/assets/admins/connectors/confluence/connector-form-cloud.jpg)
+
+В этом примере используется токен без областей. Включите **Using scoped token**, если вы создали токен с областями.
+
+## Настройка синхронизации прав в Cloud {#configure-cloud-permission-sync}
+
+Синхронизация прав требует Yahont Enterprise Edition или Yahont Cloud. Она читает права на пространства,
+ограничения страниц, унаследованные ограничения родительских страниц, пользователей, группы и членство в группах.
+
+Прежде чем включать её:
+
+- Используйте аккаунт администратора Confluence или сделайте аккаунт коннектора администратором каждого индексируемого
+  пространства.
+- Сохраните области токена, связанные с правами, из списка областей токена.
+- Убедитесь, что адреса электронной почты пользователей видны аккаунту коннектора.
+  Пользователи Atlassian управляют этим в **Manage account > Profile and visibility > Contact**. См.
+  [руководство по видимости адресов электронной
+  почты](https://support.atlassian.com/confluence-cloud/docs/configure-user-email-visibility/) от Atlassian.
+- Убедитесь, что адрес электронной почты каждого пользователя Confluence совпадает с адресом пользователя в Yahont.
+
+<Warning>
+  Не включайте синхронизацию прав, пока не проверите публичное пространство, пространство с ограничениями,
+  страницу с ограничениями и страницу под родительской страницей с ограничениями.
+  Отсутствующие адреса электронной почты или неполная видимость групп могут не дать нужным пользователям найти
+  содержимое.
+</Warning>
+
+## Ротация токена Cloud {#rotate-a-cloud-token}
+
+Создайте новый токен до истечения старого. В Yahont измените или замените учётные данные, используемые коннектором,
+затем запустите новую попытку индексации. Отзывайте старый токен только после успешной работы новых учётных данных.

@@ -1,0 +1,79 @@
+---
+title: "Google Cloud Storage"
+description: "Доступ к файлам из корзин Google Cloud Storage"
+---
+
+## Как это работает {#how-it-works}
+
+Коннектор Google Cloud Storage получает все документы из указанной корзины GCS.
+Он поддерживает различные форматы файлов, включая PDF, DOC, DOCX, TXT и другие.
+
+Документы обновляются раз в **1** день.
+
+## Настройка {#setting-up}
+
+### Авторизация {#authorization}
+
+<Steps>
+  <Step title="Откройте настройки Interoperability">
+    Войдите в [Google Cloud Console](https://console.cloud.google.com/).
+    Перейдите в «Cloud Storage» > «Settings» > «Interoperability».
+
+    <img className="rounded-image" src="/assets/admins/connectors/blob/google/interoperability.png" alt="Interoperability в Google Cloud Storage"/>
+  </Step>
+
+  <Step title="Создайте ключ сервисного аккаунта">
+    Нажмите «Create a key for a service account».
+    Нажмите «Create new account» (или выберите существующий аккаунт и нажмите Create key).
+
+    <img className="rounded-image" src="/assets/admins/connectors/blob/google/new_service_account.png" alt="Новый сервисный аккаунт"/>
+  </Step>
+
+  <Step title="Задайте сведения о сервисном аккаунте">
+    Задайте имя для нового сервисного аккаунта (например, «yahont-gcs-connector») и нажмите «Create and continue».
+
+    <img className="rounded-image" src="/assets/admins/connectors/blob/google/service_account_config.png" alt="Конфигурация сервисного аккаунта"/>
+  </Step>
+
+  <Step title="Назначьте роль и завершите">
+    Нажмите «Select a role» и выберите Storage Object Viewer или другую, более широкую роль. Нажмите «Done».
+
+    <img className="rounded-image" src="/assets/admins/connectors/blob/google/service_account_perms.png" alt="Права сервисного аккаунта"/>
+  </Step>
+
+  <Step title="Запишите HMAC-ключи">
+    На странице Interoperability вы увидите новые учётные данные. Запишите `Access key` и `Secret`.
+
+    <img className="rounded-image" src="/assets/admins/connectors/blob/google/hmac_keys.png" alt="HMAC-ключи"/>
+  </Step>
+</Steps>
+
+### Индексирование {#indexing}
+
+<Steps>
+  <Step title="Откройте коннектор Google Storage">
+    Откройте панель администратора > Добавить коннектор > **Google Storage**.
+  </Step>
+
+  <Step title="Создайте учётные данные">
+    Нажмите «Создать», чтобы создать новые учётные данные.
+
+    <img className="rounded-image" src="/assets/admins/connectors/blob/google/onyx_1.png" alt="Учётные данные Google Cloud Storage в Yahont"/>
+  </Step>
+
+  <Step title="Введите ключи и подключитесь">
+    Вставьте Access key и Secret в форму. Нажмите «Создать и продолжить». Задайте коннектору название,
+    укажите корзину GCS, которую хотите проиндексировать, и нажмите «Создать коннектор».
+
+    <img className="rounded-image" src="/assets/admins/connectors/blob/google/onyx_2.png" alt="Создание коннектора в Yahont"/>
+  </Step>
+</Steps>
+
+## Как устроено хранилище Google Cloud Storage {#understanding-google-cloud-storage-structure}
+
+Google Cloud Storage организует данные в корзины (buckets).
+В каждой корзине может быть неограниченное число объектов (файлов). Корзину можно представить как корневой каталог,
+а объекты — как файлы в этом каталоге.
+
+Подробнее о структуре Google Cloud Storage читайте в [документации Google Cloud
+Storage](https://cloud.google.com/storage/docs).

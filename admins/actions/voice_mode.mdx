@@ -1,0 +1,169 @@
+---
+title: "Голосовой режим"
+description: "Настройте голосовых поставщиков, чтобы включить голосовой режим в вашем инстансе Yahont"
+icon: "microphone"
+---
+
+Действие «Голосовой режим» позволяет пользователям вести голосовые диалоги с Yahont с помощью поставщиков преобразования
+речи в текст и текста в речь.
+
+## Настройка голосового режима {#setting-up-voice-mode}
+
+<Steps>
+  <Step title="Откройте панель голосового режима">
+    Нажмите значок профиля пользователя,
+    выберите «Панель администратора» и откройте вкладку «Голосовой режим» на боковой панели.
+
+    <img className="rounded-image" src="/assets/admins/actions/voice-mode/voice_mode_dashboard.png" alt="Панель голосового режима в панели администратора Yahont"/>
+  </Step>
+
+  <Step title="Настройте поставщика преобразования речи в текст (STT)">
+    Настройте поставщика, который расшифровывает речь пользователя в текст.
+
+    <img className="rounded-image" src="/assets/admins/actions/voice-mode/stt.png" alt="Поставщики преобразования речи в текст"/>
+
+    <Tabs tabs={["OpenAI Whisper", "Azure STT", "ElevenLabs"]}>
+      <Tab title="OpenAI Whisper">
+        <div style={{ marginTop: '-2rem' }}>
+
+        <Steps>
+          <Step title="Получите API-ключ OpenAI">
+            Откройте [панель OpenAI](https://platform.openai.com/api-keys)
+            и создайте новый API-ключ или используйте существующий API-ключ OpenAI,
+            уже настроенный для вашего поставщика LLM.
+          </Step>
+
+          <Step title="Введите API-ключ">
+            Нажмите **Подключить** и введите API-ключ.
+          </Step>
+        </Steps>
+
+        </div>
+      </Tab>
+
+      <Tab title="Azure STT">
+        <div style={{ marginTop: '-2rem' }}>
+
+        <Steps>
+          <Step title="Получите учётные данные Azure Speech">
+            Откройте [портал Azure](https://portal.azure.com) и создайте ресурс Speech. Скопируйте API-ключ и регион.
+          </Step>
+
+          <Step title="Введите учётные данные">
+            Нажмите **Подключить** и введите API-ключ, регион и целевой URI.
+          </Step>
+        </Steps>
+
+        </div>
+      </Tab>
+
+      <Tab title="ElevenLabs">
+        <div style={{ marginTop: '-2rem' }}>
+
+        <Steps>
+          <Step title="Получите API-ключ ElevenLabs">
+            Откройте [панель ElevenLabs](https://elevenlabs.io/app/settings/api-keys) и создайте новый API-ключ.
+          </Step>
+
+          <Step title="Введите API-ключ">
+            Нажмите **Подключить** и введите API-ключ.
+          </Step>
+        </Steps>
+
+        </div>
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Настройте поставщика преобразования текста в речь (TTS)">
+    Настройте поставщика, который преобразует ответы ИИ в озвученный звук.
+
+    <img className="rounded-image" src="/assets/admins/actions/voice-mode/tts.png" alt="Поставщики преобразования текста в речь"/>
+
+    <Tabs tabs={["OpenAI TTS-1", "OpenAI TTS-1 HD", "Azure TTS", "ElevenLabs"]}>
+      <Tab title="OpenAI TTS-1">
+        <div style={{ marginTop: '-2rem' }}>
+
+        <Steps>
+          <Step title="Получите API-ключ OpenAI">
+            Откройте [панель OpenAI](https://platform.openai.com/api-keys)
+            и создайте новый API-ключ (или используйте тот же, что для Whisper).
+          </Step>
+
+          <Step title="Введите API-ключ">
+            Нажмите **Подключить** и введите API-ключ.
+          </Step>
+        </Steps>
+
+        </div>
+      </Tab>
+
+      <Tab title="OpenAI TTS-1 HD">
+        <div style={{ marginTop: '-2rem' }}>
+
+        <Steps>
+          <Step title="Получите API-ключ OpenAI">
+            Откройте [панель OpenAI](https://platform.openai.com/api-keys)
+            и создайте новый API-ключ (или используйте тот же, что для Whisper).
+          </Step>
+
+          <Step title="Введите API-ключ">
+            Нажмите **Подключить** и введите API-ключ.
+          </Step>
+        </Steps>
+
+        <Note>
+          TTS-1 HD даёт более качественный звук, чем TTS-1, но задержка и стоимость могут быть немного выше.
+        </Note>
+        </div>
+      </Tab>
+
+      <Tab title="Azure TTS">
+        <div style={{ marginTop: '-2rem' }}>
+
+        <Steps>
+          <Step title="Получите учётные данные Azure Speech">
+            Откройте [портал Azure](https://portal.azure.com) и создайте ресурс Speech. Скопируйте API-ключ и регион.
+          </Step>
+
+          <Step title="Введите учётные данные">
+            Нажмите **Подключить** и введите API-ключ, регион и целевой URI.
+          </Step>
+        </Steps>
+
+        </div>
+      </Tab>
+
+      <Tab title="ElevenLabs">
+        <div style={{ marginTop: '-2rem' }}>
+
+        <Steps>
+          <Step title="Получите API-ключ ElevenLabs">
+            Откройте [панель ElevenLabs](https://elevenlabs.io/app/settings/api-keys) и создайте новый API-ключ.
+          </Step>
+
+          <Step title="Введите API-ключ">
+            Нажмите **Подключить** и введите API-ключ.
+          </Step>
+        </Steps>
+
+        </div>
+      </Tab>
+    </Tabs>
+
+    После настройки поставщика TTS выберите голос в раскрывающемся списке или введите идентификатор голоса напрямую.
+
+    <img className="rounded-image" src="/assets/admins/actions/voice-mode/voice_selection.png" alt="Выбор голоса"/>
+  </Step>
+
+  <Step title="Выберите поставщика по умолчанию">
+    Если настроено несколько поставщиков,
+    обязательно нажмите **Сделать по умолчанию** для предпочтительных поставщиков STT и TTS.
+
+    <img className="rounded-image" src="/assets/admins/actions/voice-mode/set_default.png" alt="Выбор поставщика по умолчанию"/>
+  </Step>
+</Steps>
+
+<Note>
+  Убедитесь, что у ваших пользователей в браузере включён доступ к микрофону, иначе голосовой режим не будет работать.
+</Note>

@@ -1,0 +1,27 @@
+---
+title: "Anthropic"
+description: "Настройка языковых моделей Anthropic Claude для Yahont"
+icon: "brain"
+---
+
+import NavigateToAiModels from "/snippets/navigate-to-ai-models.mdx";
+import StandardAiModelConfigs from "/snippets/standard-ai-model-configs.mdx";
+
+## Руководство {#guide}
+
+<Steps>
+  <NavigateToAiModels />
+
+  <Step title="Настройте Anthropic">
+    Выберите **Anthropic** среди доступных поставщиков.
+
+    Задайте этой конфигурации **отображаемое имя**.
+
+    Создайте [API-ключ](https://console.anthropic.com/dashboard)
+    на панели API Anthropic и вставьте его в поле **API-ключ**.
+
+    <img className="rounded-image" src="/assets/admins/ai_models/anthropic_config.png" alt="Настройка поставщика Anthropic"/>
+  </Step>
+
+  <StandardAiModelConfigs />
+</Steps>

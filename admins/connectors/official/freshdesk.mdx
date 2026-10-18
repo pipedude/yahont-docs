@@ -1,0 +1,65 @@
+---
+title: "Freshdesk"
+description: "Доступ к заявкам и перепискам из Freshdesk"
+---
+
+## Как это работает {#how-it-works}
+
+Коннектор Freshdesk индексирует заявки (tickets) из вашего аккаунта Freshdesk.
+
+## Настройка {#setting-up}
+
+### Авторизация {#authorization}
+
+<Steps>
+  <Step title="Войдите в Freshdesk">
+    Войдите в Freshdesk
+    - Пользователь Freshdesk должен быть проверенным агентом, администратором или владельцем.
+  </Step>
+
+  <Step title="Откройте настройки профиля">
+    Нажмите на аватар профиля и выберите настройки профиля.
+
+    <img className="rounded-image" src="/assets/admins/connectors/freshdesk/freshdesk_1.png" alt="Аутентификация коннектора Freshdesk"/>
+  </Step>
+
+  <Step title="Просмотрите API-ключ">
+    Выберите **View API Key**.
+
+    <img className="rounded-image" src="/assets/admins/connectors/freshdesk/freshdesk_2.png" alt="Аутентификация коннектора Freshdesk"/>
+  </Step>
+
+  <Step title="Авторизуйте Yahont">
+    Получив API-ключ, используйте его (а также ваш домен) для авторизации коннектора Yahont.
+    [Поле пароля не используется, если указан API-ключ](https://developers.freshdesk.com/api/#authentication),
+    и будет удалено в одной из будущих версий Yahont. Пока что введите в поле пароля abc.
+  </Step>
+</Steps>
+
+### Индексирование {#indexing}
+
+<Steps>
+  <Step title="Откройте коннектор Freshdesk">
+    Откройте панель администратора.
+  </Step>
+
+  <Step title="Добавьте коннектор">
+    На боковой панели выберите **Добавить коннектор** и нажмите на плитку **Freshdesk**.
+  </Step>
+
+  <Step title="Создайте учётные данные">
+    Выберите **Создать** и укажите **Domain**, **Password** и **API Key** и, при желании, название ваших учётных данных.
+  </Step>
+
+  <Step title="Сохраните учётные данные">
+    Нажмите **Создать**, и ваши учётные данные будут сохранены и автоматически выбраны.
+  </Step>
+
+  <Step title="Создайте коннектор">
+    После нажатия **Продолжить** можно выбрать название коннектора и нажать **Создать коннектор**.
+  </Step>
+
+  <Step title="Запустите индексацию">
+    После создания коннектора Yahont автоматически начнёт индексировать ваши заявки.
+  </Step>
+</Steps>

@@ -1,0 +1,490 @@
+---
+title: "Terraform"
+description: "Создание инфраструктуры AWS, GCP или Azure для Yahont с помощью модулей Terraform"
+icon: "grid"
+---
+
+import DeploymentNextSteps from "/snippets/deployment-next-steps.mdx"
+
+<Note>
+  На этой странице описаны **модули** Terraform, которые создают инфраструктуру для Yahont — сеть, кластер Kubernetes,
+  базу данных и остальное. Они выполняются до появления Yahont.
+
+  Чтобы настроить уже работающее развёртывание — поставщиков LLM, коннекторы, наборы документов,
+  агентов — используйте вместо этого [Terraform-провайдер Yahont](/admins/advanced_configs/terraform_provider).
+  Они независимы и дополняют друг друга: модули создают инфраструктуру, а провайдер настраивает то,
+  что работает внутри неё.
+</Note>
+
+<Tip>
+  Прежде чем начать, ознакомьтесь с [руководством по ресурсам](/deployment/getting_started/resourcing).
+</Tip>
+
+Yahont поставляется с [модулями Terraform](https://github.com/onyx-dot-app/onyx/tree/main/deployment/terraform/modules)
+для AWS, GCP и Azure. Каждый набор создаёт сеть, кластер Kubernetes, управляемые PostgreSQL, Redis,
+объектное хранилище для файлового хранилища и межсетевой экран веб-приложений. Когда инфраструктура готова,
+вы устанавливаете рабочие нагрузки Yahont с помощью [Helm-чарта](/deployment/local/kubernetes).
+
+| Облако | Модули | Теги релизов | Сервисы | Руководство |
+| --- | --- | --- | --- | --- |
+| AWS | [`modules/aws`](https://github.com/onyx-dot-app/onyx/tree/main/deployment/terraform/modules/aws) | `tf/vX.Y.Z` | VPC, EKS, RDS for PostgreSQL, ElastiCache for Redis, S3, WAF и (необязательно) Amazon OpenSearch | Эта страница |
+| GCP | [`modules/gcp`](https://github.com/onyx-dot-app/onyx/tree/main/deployment/terraform/modules/gcp) | `tf-gcp/vX.Y.Z` | VPC, GKE, Cloud SQL for PostgreSQL, Memorystore for Redis, Cloud Storage, Cloud Armor, L7-балансировщик нагрузки (по выбору) | [Руководство по GCP](/deployment/cloud/gcp#gke-with-terraform) |
+| Azure | [`modules/azure`](https://github.com/onyx-dot-app/onyx/tree/main/deployment/terraform/modules/azure) | `tf-azure/vX.Y.Z` | Виртуальная сеть, AKS, PostgreSQL Flexible Server, Azure Managed Redis, Blob Storage, политика WAF | [README модуля](https://github.com/onyx-dot-app/onyx/blob/main/deployment/terraform/modules/azure/README.md) |
+У каждого облака свои теги релизов, независимые от релизов Yahont. Чтобы использовать модули из вашего репозитория,
+задайте источник `git::` и закрепите `ref`:
+
+```hcl
+module "onyx" {
+  source = "git::https://github.com/onyx-dot-app/onyx.git//deployment/terraform/modules/aws/onyx?ref=tf/v1.0.2"
+  # ...
+}
+```
+
+В GCP и Azure индекс документов (OpenSearch) работает в кластере,
+потому что в этих облаках нет управляемого сервиса OpenSearch, который используют модули.
+
+Остальная часть этой страницы описывает модули **AWS**.
+
+<Info>
+  Эти модули задуманы как **эталонная реализация**. Они отражают то, как мы развёртываем Yahont,
+  и содержат разумные значения по умолчанию, но каждая среда уникальна — относитесь к ним как к отправной точке,
+  которую нужно форкнуть и адаптировать под ваш аккаунт, сеть и требования соответствия, а не как к чёрному ящику,
+  который используется как есть.
+</Info>
+
+## Что создаётся {#what-gets-provisioned}
+
+Составной модуль `onyx` объединяет перечисленные ниже строительные блоки.
+При необходимости более детального контроля их также можно использовать по отдельности.
+
+| Модуль        | Ресурс                                                                   |
+| ------------- | ------------------------------------------------------------------------ |
+| `vpc`         | VPC, публичные и приватные подсети в разных зонах доступности, NAT и конечная точка шлюза S3 |
+| `eks`         | Кластер EKS, управляемые группы узлов (основная и выделенная для OpenSearch), дополнения, IRSA |
+| `postgres`    | RDS for PostgreSQL с резервными копиями и оповещениями CloudWatch        |
+| `redis`       | Группа репликации ElastiCache for Redis с TLS при передаче               |
+| `s3`          | Бакет S3 для файлового хранилища Yahont, ограниченный конечной точкой S3 в VPC |
+| `opensearch`  | (Необязательно) Домен Amazon OpenSearch внутри VPC                       |
+| `waf`         | (Необязательно, рекомендуется) Web ACL AWS WAFv2 с управляемыми наборами правил, ограничениями частоты и гео-контролем |
+| `onyx`        | Модуль верхнего уровня, объединяющий перечисленные выше модули           |
+
+## Предварительные требования {#prerequisites}
+
+<Steps>
+  <Step title="Установите инструменты">
+    - [Terraform](https://developer.hashicorp.com/terraform/install) `>= 1.12.0`
+    - [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html), настроенный с учётными данными, которые могут создавать VPC, кластеры EKS, RDS, ElastiCache, бакеты S3, роли IAM и (необязательно) WAF и OpenSearch
+    - [`kubectl`](https://kubernetes.io/docs/tasks/tools/) и [`helm`](https://helm.sh/docs/intro/install/) для установки Helm после применения
+  </Step>
+
+  <Step title="Клонируйте репозиторий Yahont">
+    ```bash
+    git clone --depth 1 https://github.com/onyx-dot-app/onyx.git
+    cd onyx/deployment/terraform
+    ```
+
+    Модули находятся в `modules/aws/`. Вы создадите небольшой корневой модуль, который их вызывает.
+  </Step>
+
+  <Step title="Выберите регион AWS и имя">
+    Переменная `name` используется как префикс для всего, что создают модули (VPC, кластер, RDS, бакет S3 и т. д.),
+    и объединяется с текущим рабочим пространством Terraform,
+    поэтому один и тот же код может создавать изолированные среды `dev`, `staging` и `prod`.
+  </Step>
+</Steps>
+
+## Быстрый старт {#quickstart}
+
+Фрагмент ниже — минимальный корневой модуль, создающий полный стек Yahont в AWS с помощью составного модуля `onyx`.
+
+```hcl main.tf
+locals {
+  region = "us-west-2"
+}
+
+terraform {
+  required_version = ">= 1.12.0"
+
+  required_providers {
+    aws        = { source = "hashicorp/aws",        version = "~> 5.100" }
+    helm       = { source = "hashicorp/helm",       version = "~> 2.16"  }
+    kubernetes = { source = "hashicorp/kubernetes", version = "~> 2.37"  }
+  }
+}
+
+provider "aws" {
+  region = local.region
+}
+
+module "onyx" {
+  # Adjust the source path to wherever you have the modules checked out.
+  source = "./modules/aws/onyx"
+
+  region            = local.region
+  name              = "onyx"
+  postgres_username = "onyx"
+  postgres_password = var.postgres_password # pass via TF_VAR_postgres_password
+}
+
+# Wait for the EKS control plane before configuring the k8s/helm providers.
+resource "null_resource" "wait_for_cluster" {
+  provisioner "local-exec" {
+    command = "aws eks wait cluster-active --name ${module.onyx.cluster_name} --region ${local.region}"
+  }
+}
+
+data "aws_eks_cluster" "eks" {
+  name       = module.onyx.cluster_name
+  depends_on = [null_resource.wait_for_cluster]
+}
+
+data "aws_eks_cluster_auth" "eks" {
+  name       = module.onyx.cluster_name
+  depends_on = [null_resource.wait_for_cluster]
+}
+
+provider "kubernetes" {
+  host                   = data.aws_eks_cluster.eks.endpoint
+  cluster_ca_certificate = base64decode(data.aws_eks_cluster.eks.certificate_authority[0].data)
+  token                  = data.aws_eks_cluster_auth.eks.token
+}
+
+provider "helm" {
+  kubernetes {
+    host                   = data.aws_eks_cluster.eks.endpoint
+    cluster_ca_certificate = base64decode(data.aws_eks_cluster.eks.certificate_authority[0].data)
+    token                  = data.aws_eks_cluster_auth.eks.token
+  }
+}
+
+output "cluster_name" {
+  value = module.onyx.cluster_name
+}
+
+output "postgres_endpoint" {
+  value = module.onyx.postgres_endpoint
+}
+
+output "redis_connection_url" {
+  value     = module.onyx.redis_connection_url
+  sensitive = true
+}
+```
+
+Примените его:
+
+```bash
+export TF_VAR_postgres_password='change-me'
+
+terraform init
+terraform plan
+terraform apply
+```
+
+Полное применение занимает около 20 минут — большую часть времени уходит на ожидание EKS, RDS и ElastiCache.
+
+## Общая конфигурация {#common-configuration}
+
+Составной модуль `onyx` предоставляет входные параметры, которые вы чаще всего захотите настраивать.
+
+### Основное {#core}
+
+<ParamField path="name" type="string" default="onyx">
+  Префикс для каждого ресурса, создаваемого модулем. Объединяется с активным рабочим пространством Terraform,
+  поэтому одна кодовая база может управлять несколькими средами.
+</ParamField>
+
+<ParamField path="region" type="string" default="us-west-2">
+  Регион AWS для всех ресурсов.
+</ParamField>
+
+<ParamField path="postgres_username" type="string" required>
+  Имя главного пользователя инстанса RDS Postgres.
+</ParamField>
+
+<ParamField path="postgres_password" type="string" required>
+  Пароль главного пользователя инстанса RDS Postgres.
+  Помечен как чувствительный — передавайте через `TF_VAR_postgres_password` или менеджер секретов,
+  а не задавайте жёстко.
+</ParamField>
+
+<ParamField path="tags" type="map(string)" default='{"project":"onyx"}'>
+  Базовые теги, применяемые к каждому ресурсу AWS, создаваемому модулями.
+</ParamField>
+
+### Сеть {#networking}
+
+<ParamField path="create_vpc" type="bool" default="true">
+  Когда `true`, модуль создаёт новый VPC нужного для EKS размера. Задайте `false`,
+  чтобы использовать существующий VPC — см. [Использование существующего VPC](#using-an-existing-vpc).
+</ParamField>
+
+<ParamField path="public_cluster_enabled" type="bool" default="true">
+  Доступна ли конечная точка API EKS из публичного интернета. Сочетайте с `cluster_endpoint_public_access_cidrs`,
+  чтобы ограничить доступ конкретными IP.
+</ParamField>
+
+<ParamField path="private_cluster_enabled" type="bool" default="false">
+  Включить приватную конечную точку API EKS. Рекомендуется для продакшена. Можно включить и публичную,
+  и приватную одновременно или только приватную.
+</ParamField>
+
+<ParamField path="cluster_endpoint_public_access_cidrs" type="list(string)" default="[]">
+  Блоки CIDR, которым разрешён доступ к публичной конечной точке API EKS, когда она включена.
+</ParamField>
+
+### База данных и кэш {#database-cache}
+
+<ParamField path="enable_iam_auth" type="bool" default="false">
+  Включает аутентификацию IAM для RDS и подключает роль IRSA к модулю EKS,
+  чтобы рабочие нагрузки Yahont могли подключаться к Postgres без статического пароля.
+  Требует задать `rds_db_connect_arn`.
+</ParamField>
+
+<ParamField path="postgres_backup_retention_period" type="number" default="7">
+  Сколько дней хранить автоматические резервные копии RDS. Задайте `0`, чтобы отключить.
+</ParamField>
+
+<ParamField path="redis_auth_token" type="string">
+  Необязательный токен аутентификации для Redis. Помечен как чувствительный.
+</ParamField>
+
+### OpenSearch (необязательно) {#opensearch-optional}
+
+Управляемый OpenSearch **по умолчанию выключен**. Включите его,
+если нужен управляемый бэкенд индекса документов вместо группы узлов OpenSearch в кластере.
+
+Если вы создаёте управляемый индекс документов,
+отключите запуск контейнера OpenSearch в соответствующем docker-compose или Helm,
+так как Yahont не будет использовать этот контейнер. Также задайте нужные переменные окружения. См.
+[как настроить Yahont с OpenSearch](/deployment/local/opensearch).
+
+<ParamField path="enable_opensearch" type="bool" default="false">
+  Создать домен Amazon OpenSearch внутри VPC.
+</ParamField>
+
+<ParamField path="opensearch_instance_type" type="string" default="r8g.large.search" />
+<ParamField path="opensearch_instance_count" type="number" default="3" />
+<ParamField path="opensearch_master_user_name" type="string" />
+<ParamField path="opensearch_master_user_password" type="string" />
+
+### WAF {#waf}
+
+Модуль `waf` необязателен, но **настоятельно рекомендуется** для любого развёртывания, доступного из интернета.
+Он создаёт web ACL AWS WAFv2 с общими управляемыми наборами правил,
+ограничениями частоты и необязательной блокировкой по географии,
+которую можно прикрепить к балансировщику нагрузки перед Yahont.
+Настройте входные параметры ниже под ваш профиль трафика.
+
+<ParamField path="waf_allowed_ip_cidrs" type="list(string)" default="[]">
+  Необязательный список разрешённых IP. Оставьте пустым,
+  чтобы разрешить все исходные IP с учётом управляемых наборов правил и ограничений частоты.
+</ParamField>
+
+<ParamField path="waf_rate_limit_requests_per_5_minutes" type="number" default="2000" />
+<ParamField path="waf_api_rate_limit_requests_per_5_minutes" type="number" default="1000" />
+
+<ParamField path="waf_geo_restriction_countries" type="list(string)" default="[]">
+  Коды стран для блокировки. Оставьте пустым, чтобы отключить гео-ограничения.
+</ParamField>
+
+Полный список входных параметров см.
+в
+[`modules/aws/onyx/variables.tf`](https://github.com/onyx-dot-app/onyx/blob/main/deployment/terraform/modules/aws/onyx/variables.tf).
+
+## Использование существующего VPC {#using-an-existing-vpc}
+
+Если у вас уже есть VPC, в который нужно развернуть Yahont, задайте `create_vpc = false` и передайте сведения о VPC,
+включая ID существующей конечной точки шлюза S3 в VPC, на которую будет ссылаться политика бакета.
+
+```hcl
+module "onyx" {
+  source = "./modules/aws/onyx"
+
+  region            = "us-west-2"
+  name              = "onyx"
+  postgres_username = "onyx"
+  postgres_password = var.postgres_password
+
+  create_vpc         = false
+  vpc_id             = "vpc-0123456789abcdef0"
+  vpc_cidr_block     = "10.0.0.0/16"
+  private_subnets    = ["subnet-aaa", "subnet-bbb", "subnet-ccc"]
+  public_subnets     = ["subnet-ddd", "subnet-eee", "subnet-fff"]
+  s3_vpc_endpoint_id = "vpce-0123456789abcdef0"
+}
+```
+
+<Warning>
+  Политика бакета S3 ограничивает доступ к бакету указанной `s3_vpc_endpoint_id`. Убедитесь,
+  что ваши рабочие узлы направляют трафик S3 через эту конечную точку, иначе вызовы S3 из кластера будут отклонены.
+</Warning>
+
+## Усиление защиты для продакшена {#production-hardening}
+
+Для продакшена мы рекомендуем следующие отличия от быстрого старта:
+
+```hcl
+module "onyx" {
+  source = "./modules/aws/onyx"
+
+  region            = "us-west-2"
+  name              = "onyx"
+  postgres_username = "onyx"
+  postgres_password = var.postgres_password
+
+  # Restrict the EKS control plane
+  private_cluster_enabled              = true
+  public_cluster_enabled               = true
+  cluster_endpoint_public_access_cidrs = ["203.0.113.0/24"] # your office/VPN
+
+  # Use IAM auth instead of a static Postgres password in cluster secrets
+  enable_iam_auth    = true
+  rds_db_connect_arn = "arn:aws:rds-db:us-west-2:123456789012:dbuser:*/onyx"
+
+  # Tighten WAF
+  waf_rate_limit_requests_per_5_minutes     = 1000
+  waf_api_rate_limit_requests_per_5_minutes = 500
+  waf_geo_restriction_countries             = ["RU", "KP"]
+
+  # Backups
+  postgres_backup_retention_period = 30
+
+  # Optional: managed search backend
+  enable_opensearch               = true
+  opensearch_master_user_name     = "onyx-admin"
+  opensearch_master_user_password = var.opensearch_password
+}
+```
+
+## Выходные значения {#outputs}
+
+После завершения `terraform apply` модуль `onyx` предоставляет значения, которые понадобятся для настройки Helm-чарта.
+
+| Выходное значение               | Описание                                                     |
+| ------------------------------- | ------------------------------------------------------------ |
+| `cluster_name`                  | Имя кластера EKS — передайте в `aws eks update-kubeconfig`   |
+| `postgres_endpoint`             | Имя хоста RDS                                                |
+| `postgres_port`                 | Порт RDS                                                     |
+| `postgres_db_name`              | Имя базы данных (по умолчанию `postgres`)                    |
+| `postgres_username`             | Имя главного пользователя (чувствительное)                   |
+| `redis_connection_url`          | Основная конечная точка Redis (чувствительное)               |
+| `opensearch_endpoint`           | Конечная точка домена OpenSearch, при `enable_opensearch = true` |
+| `opensearch_dashboard_endpoint` | Конечная точка OpenSearch Dashboards, когда включён          |
+
+Прочитайте их с помощью `terraform output`:
+
+```bash
+terraform output cluster_name
+terraform output -raw postgres_endpoint
+terraform output -raw redis_connection_url
+```
+
+## Установка Yahont с помощью Helm {#install-onyx-with-helm}
+
+Terraform создаёт только инфраструктуру — сам Yahont устанавливается с помощью
+[Helm-чарта](/deployment/local/kubernetes).
+
+<Steps>
+  <Step title="Обновите kubeconfig">
+    ```bash
+    aws eks update-kubeconfig \
+      --name $(terraform output -raw cluster_name) \
+      --region us-west-2
+    ```
+  </Step>
+
+  <Step title="Создайте пространство имён">
+    ```bash
+    kubectl create namespace onyx
+    ```
+  </Step>
+
+  <Step title="Установите чарт">
+    Модуль EKS создаёт `ServiceAccount` с поддержкой IRSA с именем `onyx-workload-access` в пространстве имён `onyx`,
+    у которого есть доступ к бакету S3, созданному модулем. Укажите его чарту и отключите MinIO в кластере,
+    чтобы файловое хранилище использовало настоящий бакет S3.
+
+    ```bash
+    helm repo add onyx https://onyx-dot-app.github.io/onyx/
+    helm repo update
+
+    helm upgrade --install onyx onyx/onyx \
+      --namespace onyx \
+      --set minio.enabled=false \
+      --set serviceAccount.create=false \
+      --set serviceAccount.name=onyx-workload-access
+    ```
+
+    Также нужно связать настройки базы данных, Redis и (необязательно)
+    OpenSearch в чарте с выходными значениями Terraform через ваш собственный `values.yaml`. Полный набор значений см.
+    в [руководстве по развёртыванию в Kubernetes](/deployment/local/kubernetes).
+  </Step>
+
+  <Step title="Проверьте">
+    ```bash
+    kubectl get pods -n onyx
+    ```
+
+    Дождитесь, пока все поды перейдут в состояние `Running`, прежде чем обращаться к Yahont.
+  </Step>
+</Steps>
+
+## Рабочие пространства и несколько сред {#workspaces-and-multiple-environments}
+
+Каждый ресурс, создаваемый модулем `onyx`, получает имя с активным рабочим пространством Terraform,
+поэтому один и тот же корневой модуль может управлять изолированными средами без конфликтов:
+
+```bash
+terraform workspace new dev
+terraform workspace new staging
+terraform workspace new prod
+
+terraform workspace select prod
+terraform apply
+```
+
+Вызов модуля с `name = "onyx"` в рабочем пространстве `prod` создаст ресурсы с префиксом `onyx-prod`,
+а тот же вызов в `dev` создаст ресурсы `onyx-dev`.
+
+## Примечания и подводные камни {#notes-gotchas}
+
+- **Чувствительные выходные значения.** `postgres_username`, `redis_connection_url` и
+  данные CA EKS помечены как чувствительные. Передавайте их менеджеру секретов или файлу значений Helm,
+  а не выводите в журналы.
+- **Хранение состояния.** В быстром старте для краткости используется локальное состояние. Для общего
+  или продакшен-использования настройте [бэкенд S3](https://developer.hashicorp.com/terraform/language/backend/s3)
+  с блокировкой DynamoDB.
+- **Первое применение — только инфраструктура.** EKS становится активным за несколько минут.
+  Блок `null_resource.wait_for_cluster` в быстром старте блокирует провайдеры Kubernetes и Helm,
+  пока API-сервер не станет доступен.
+- **Группа узлов OpenSearch помечена taint.** Модуль `eks` создаёт
+  выделенную группу узлов с taint `vespa-dedicated=true:NoSchedule`.
+  Чтобы запускать OpenSearch в кластере на этой группе,
+  добавьте эти переопределения в файл значений Helm и передайте его с `-f values.yaml` при установке чарта:
+
+  ```yaml
+  opensearch:
+    nodeSelector:
+      eks.amazonaws.com/nodegroup: vespa-node-group
+    tolerations:
+      - key: vespa-dedicated
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+  ```
+
+  Чарт по умолчанию эти переопределения не задаёт. Без toleration OpenSearch не может работать на этой группе узлов.
+- **Эталон, а не продукт.** Модули отражают выбор, который мы делаем для
+  собственных развёртываний. Читайте их, копируйте полезное и заменяйте остальное.
+
+## Настройка Yahont как кода {#configure-onyx-as-code}
+
+Когда развёртывание запущено, им можно продолжать управлять с помощью Terraform — теперь уже самим Yahont, а не AWS.
+
+<Card title="Terraform-провайдер Yahont" icon="cubes" href="/admins/advanced_configs/terraform_provider">
+  Описывайте поставщиков LLM, коннекторы, наборы документов,
+  агентов и группы пользователей в Terraform и применяйте их из CI.
+</Card>
+
+<DeploymentNextSteps />

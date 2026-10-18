@@ -1,0 +1,281 @@
+---
+title: "Шлюз LLM"
+description: "Направляйте запросы приложений к LLM через модели и контроль доступа, настроенные в Yahont"
+icon: "route"
+---
+
+Шлюз LLM Yahont даёт приложениям единую конечную точку для языковых моделей, настроенных вашей организацией в Yahont.
+Запросы используют вашу идентичность в Yahont, поэтому доступ к моделям и учёт использования остаются в одном месте.
+
+Используйте шлюз, когда нужно, чтобы приложение,
+автоматизация или инструмент для программирования использовали одобренные организацией модели без отдельного ключа
+поставщика.
+
+<Note>
+  Шлюз LLM доступен в Yahont Enterprise. Прежде чем шлюз сможет обслуживать запросы,
+  администратор должен настроить хотя бы одну видимую языковую модель.
+</Note>
+
+## Что предоставляет шлюз {#what-the-gateway-provides}
+
+- [Конечная точка Chat Completions, совместимая с OpenAI](https://platform.openai.com/docs/api-reference/chat/completions).
+- [Конечная точка OpenAI Responses](https://platform.openai.com/docs/api-reference/responses).
+- [Конечная точка Anthropic Messages](https://platform.claude.com/docs/en/api/messages) и [конечная точка подсчёта токенов](https://platform.claude.com/docs/en/api/messages/count_tokens).
+- Модели, доступные вашей идентичности в Yahont.
+- Учёт использования через существующие представления использования Yahont.
+- Те же средства контроля доступа к моделям и лимиты токенов, что действуют в Yahont.
+
+Шлюз не заменяет конфигурацию поставщиков моделей. Администратор по-прежнему настраивает поставщиков и решает,
+какие модели видны, в разделе [Языковые модели](/admins/ai_models/overview).
+
+<img className="rounded-image" src="/assets/developers/llm_gateway_add_provider.png" alt="Панель администратора Yahont с доступными поставщиками языковых моделей"/>
+
+## Перед началом {#before-you-begin}
+
+Вам нужно всё из следующего:
+
+- Администратор Yahont настроил языковую модель и сделал её видимой.
+- У вашего аккаунта Yahont есть доступ к этой модели.
+- Персональный токен доступа (PAT) с областью **LLM Gateway**.
+
+Создайте [персональный токен доступа](/developers/overview#personal-access-tokens)
+в **Настройки** > **Аккаунты и доступ**. Выберите **Ограниченный доступ** и отметьте **LLM Gateway**.
+Обращайтесь с токеном как с паролем. Yahont показывает его только один раз.
+
+<Tip>
+  Используйте PAT с ограниченной областью для приложения или локальной разработки.
+  Он ограничивает токен запросами к шлюзу, сохраняя доступ к моделям пользователя, который его создал.
+</Tip>
+
+## Адрес шлюза {#gateway-address}
+
+Для стандартного развёртывания Yahont используйте:
+
+```text
+https://your-yahont-domain.com/api/gateway/v1
+```
+
+При самостоятельном размещении API может быть доступен по другому публичному пути.
+Используйте публичный адрес API вашего развёртывания с добавлением `/gateway/v1`.
+
+Каждый запрос использует токен Bearer:
+
+```bash
+export ONYX_GATEWAY_URL="https://your-yahont-domain.com/api/gateway/v1"
+export ONYX_GATEWAY_API_KEY="onyx_pat_..."
+```
+
+## Поиск доступной модели {#find-an-available-model}
+
+Проще всего найти ID модели в **Настройки** > **LLM Gateway**. Раздел появляется,
+только когда хотя бы одна модель видна и доступна вашему аккаунту.
+
+Откройте поставщика, затем скопируйте ID рядом с нужной моделью. Скопированное значение уже имеет нужный формат:
+
+<img className="rounded-image" src="/assets/developers/llm_gateway_available_models.png" alt="Настройки шлюза LLM Yahont с раскрытым поставщиком и ID моделей"/>
+
+```text
+<provider-id>/<model-name>
+```
+
+Например, `12/gpt-5-mini` означает:
+
+- `12` — ID настроенного поставщика в Yahont.
+- `gpt-5-mini` — имя модели, настроенной для этого поставщика.
+
+Используйте скопированное значение без изменений как значение `model` в вашем клиенте.
+Не заменяйте ID поставщика его названием.
+
+Для каждой конфигурации клиента ищите ID модели в **Настройки**.
+
+## OpenAI Chat Completions {#openai-chat-completions}
+
+Направьте клиенты, совместимые с OpenAI, на URL шлюза.
+В этом примере используется официальный SDK OpenAI для JavaScript.
+
+```ts TypeScript
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  apiKey: process.env.ONYX_GATEWAY_API_KEY,
+  baseURL: process.env.ONYX_GATEWAY_URL,
+});
+
+const completion = await client.chat.completions.create({
+  model: "12/gpt-5-mini",
+  messages: [{ role: "user", content: "Write a one-line release note." }],
+});
+
+console.log(completion.choices[0].message.content);
+```
+
+Тот же запрос с `stream: true` использует server-sent events.
+
+## OpenAI Responses {#openai-responses}
+
+Шлюз также поддерживает API OpenAI Responses. Используйте тот же базовый URL и ID модели.
+
+```ts TypeScript
+const response = await client.responses.create({
+  model: "12/gpt-5-mini",
+  input: "Summarize the purpose of this service in one sentence.",
+});
+
+console.log(response.output_text);
+```
+
+<Info>
+  Ответы шлюза не хранят состояние. Отправляйте контекст, который нужен следующему ходу; не рассчитывайте,
+  что Yahont сохранит ID предыдущего ответа.
+</Info>
+
+## Anthropic Messages {#anthropic-messages}
+
+Для клиентов, совместимых с Anthropic,
+отправляйте запросы на конечную точку `messages` шлюза с тем же токеном Bearer и ID модели.
+
+```bash
+curl "$ONYX_GATEWAY_URL/messages" \
+  -H "Authorization: Bearer $ONYX_GATEWAY_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "18/claude-haiku-4-5",
+    "max_tokens": 256,
+    "messages": [
+      {"role": "user", "content": "Reply with one friendly greeting."}
+    ]
+  }'
+```
+
+Чтобы оценить число входных токенов запроса Anthropic Messages,
+отправьте запрос той же формы на `POST /messages/count_tokens`.
+
+## Использование с агентами для программирования {#use-with-coding-agents}
+
+Используйте шлюз с [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview)
+или [Codex](https://developers.openai.com/codex),
+чтобы запросы агентов для программирования получали те же средства контроля доступа к моделям,
+учёт использования и лимиты токенов, что и остальной трафик шлюза.
+
+### Claude Code {#claude-code}
+
+Задайте родительскую конечную точку шлюза как базовый URL Anthropic,
+затем используйте ID модели Claude из **Настройки**:
+
+```bash
+export ANTHROPIC_BASE_URL="https://your-yahont-domain.com/api/gateway"
+export ANTHROPIC_AUTH_TOKEN="$ONYX_GATEWAY_API_KEY"
+export ANTHROPIC_MODEL="18/claude-haiku-4-5"
+export ANTHROPIC_SMALL_FAST_MODEL="18/claude-haiku-4-5"
+
+claude
+```
+
+Claude Code добавляет `/v1/messages`, что соответствует конечной точке Anthropic Messages шлюза.
+Используйте ID модели со своей страницы «Настройки». ID поставщиков различаются в зависимости от развёртывания.
+
+### Codex {#codex}
+
+Создайте [профиль Codex](https://developers.openai.com/codex) в `~/.codex/onyx.config.toml`:
+
+```toml
+model = "12/gpt-5-mini"
+model_provider = "onyx_gateway"
+
+[model_providers.onyx_gateway]
+name = "Onyx Gateway"
+base_url = "https://your-yahont-domain.com/api/gateway/v1"
+wire_api = "responses"
+env_key = "ONYX_GATEWAY_API_KEY"
+```
+
+Затем экспортируйте PAT и запустите Codex с этим профилем:
+
+```bash
+export ONYX_GATEWAY_API_KEY="onyx_pat_..."
+codex -p onyx
+```
+
+Настроенная модель должна быть моделью, совместимой с OpenAI, с ID из **Настройки**.
+
+### OpenCode {#opencode}
+
+Добавьте шлюз как поставщика, совместимого с OpenAI, в `opencode.json` вашего проекта:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "onyx_gateway/12/gpt-5-mini",
+  "provider": {
+    "onyx_gateway": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Onyx Gateway",
+      "options": {
+        "baseURL": "https://your-yahont-domain.com/api/gateway/v1",
+        "apiKey": "{env:ONYX_GATEWAY_API_KEY}"
+      },
+      "models": {
+        "12/gpt-5-mini": {
+          "name": "GPT-5 mini via Onyx"
+        }
+      }
+    }
+  }
+}
+```
+
+Экспортируйте PAT перед запуском OpenCode:
+
+```bash
+export ONYX_GATEWAY_API_KEY="onyx_pat_..."
+opencode
+```
+
+Поставщик `@ai-sdk/openai-compatible` использует конечную точку Chat Completions шлюза.
+Замените пример модели моделью из настроек вашего шлюза.
+
+## Использование и лимиты {#usage-and-limits}
+
+Запросы к шлюзу используют права вызывающего пользователя в Yahont. Если пользователь теряет доступ к модели,
+шлюз перестаёт показывать и принимать эту модель для этого пользователя.
+
+Администраторы могут смотреть расход токенов и ориентировочную стоимость моделей в **Панель администратора**
+> **Использование**. Там же можно задать глобальные лимиты токенов, лимиты по группам или по пользователям.
+Эти лимиты применяются до того, как шлюз отправляет запрос на генерацию поставщику модели.
+
+<img className="rounded-image" src="/assets/developers/llm_gateway_spending_limits.png" alt="Панель администратора Yahont: настройки глобальных, пользовательских и групповых лимитов расходов"/>
+
+## Нативная передача {#native-passthrough}
+
+Запросы, которые относятся к поставщику Anthropic или настоящей модели OpenAI, передаются поставщику нативно.
+Размещённые и серверные инструменты, расширенное мышление и детализированная потоковая передача проходят без изменений.
+Запросы к другим поставщикам преобразуются через путь, совместимый с OpenAI.
+
+Администраторы при самостоятельном размещении могут отключить нативную передачу с помощью этих переменных окружения на
+API-сервере:
+
+- `ANTHROPIC_GATEWAY_PASSTHROUGH_ENABLED=false`: направлять поставщиков на основе Anthropic через путь преобразования.
+- `OPENAI_GATEWAY_PASSTHROUGH_ENABLED=false`: направлять настоящие модели OpenAI через путь преобразования.
+
+Обе по умолчанию включены.
+
+## Частые ошибки {#common-errors}
+
+| Ошибка | Что проверить |
+| --- | --- |
+| `401` или `403` | Используйте действующий PAT с областью LLM Gateway. Убедитесь, что у пользователя по-прежнему есть доступ к модели. |
+| Модель не найдена | Заново скопируйте ID модели из настроек шлюза. ID поставщика — часть идентификатора. |
+| Превышен лимит запросов | Попросите администратора проверить лимит токенов для пользователя, группы или рабочего пространства. |
+| Модель недоступна | Попросите администратора настроить поставщика или сделать модель видимой в разделе «Языковые модели». |
+
+## Дальнейшие шаги {#next-steps}
+
+<CardGroup cols={2}>
+  <Card title="Настройка языковых моделей" icon="sliders" href="/admins/ai_models/overview">
+    Добавляйте поставщиков и управляйте тем, какие модели видны.
+  </Card>
+
+  <Card title="Создание персонального токена доступа" icon="key" href="/developers/overview#personal-access-tokens">
+    Создавайте токен, используемый вашим приложением, и управляйте им.
+  </Card>
+</CardGroup>

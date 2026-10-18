@@ -1,0 +1,41 @@
+---
+title: "Действия и MCP"
+description: "Расширьте возможности агентов Yahont"
+icon: "play"
+---
+
+import BuiltInActionsTable from '/snippets/built-in-actions-table.mdx';
+
+## Обзор {#overview}
+
+**Действия** позволяют агентам взаимодействовать с внешними системами.
+
+В Yahont есть 5 встроенных действий,
+а пользователи могут настроить дополнительные через [OpenAPI](https://en.wikipedia.org/wiki/OpenAPI_Specification)
+и [Model Context Protocol](https://modelcontextprotocol.io/) (MCP).
+
+Встроенные действия:
+
+<BuiltInActionsTable />
+
+## Пользовательские действия {#custom-actions}
+
+<img className="rounded-image" src="/assets/overview/core_features/mcp.png" alt="Настройка MCP"/>
+
+Yahont предлагает гибкие варианты настройки как пользовательских действий, так и связанной с ними аутентификации.
+
+Администраторы могут выбрать один из вариантов:
+- Использовать единую общую аутентификацию: все пользователи получают одинаковый уровень доступа к действиям.
+- Потребовать от каждого пользователя пройти собственную аутентификацию,
+  чтобы действия учитывали права конкретного пользователя.
+
+Yahont поддерживает как аутентификацию по токену, так и OAuth.
+
+<img className="rounded-image" src="/assets/overview/core_features/mcp_auth.png" alt="Аутентификация MCP"/>
+
+## Кнопка действий {#actions-button}
+
+<img className="rounded-image" src="/assets/overview/core_features/action_toggle.png" alt="Переключатель действий"/>
+
+В поле ввода чата действия сгруппированы по MCP-серверу или схеме OpenAPI, с которыми они зарегистрированы.
+Пользователи могут на лету включать и выключать действия, доступные агенту и LLM.

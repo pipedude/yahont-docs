@@ -1,0 +1,339 @@
+---
+title: "MCP-сервер Yahont"
+description: "Подключайте LLM, такие как Claude, Cursor и другие ИИ-инструменты, к вашей базе знаний Yahont через Model Context Protocol"
+icon: "plug"
+---
+
+## Обзор {#overview}
+
+MCP-сервер Yahont позволяет любому MCP-совместимому клиенту LLM (Claude Desktop, Claude Code, Cursor, Windsurf и др.)
+получать доступ к вашей базе знаний Yahont,
+веб-поиску и получению содержимого по URL через [Model Context Protocol](https://modelcontextprotocol.io/).
+
+## Предварительные требования {#prerequisites}
+
+Перед подключением вам понадобятся:
+
+- **Работающий инстанс Yahont** (с самостоятельным размещением или Yahont Cloud)
+- **Аутентификация** — см. [Персональные токены доступа](/developers/overview#personal-access-tokens)
+   или [Ключи API](/admins/user_management/api_keys)
+- **MCP-совместимый клиент** (Claude Desktop, Claude Code, Cursor и др.)
+
+<Card title="Конфигурация MCP-сервера с самостоятельным размещением" icon="server" href="#self-hosted-configuration">
+  Перейти к переменным окружения, сети и параметрам развёртывания MCP-сервера с самостоятельным размещением
+</Card>
+
+## Быстрый старт {#quick-start}
+
+### Claude Code (CLI) {#claude-code-cli}
+
+```bash
+claude mcp add --transport http yahont https://your-yahont-domain.com/mcp \
+  --header "Authorization: Bearer YOUR_YAHONT_TOKEN_HERE"
+```
+
+Или добавьте его в `.mcp.json` вашего проекта:
+
+```json
+{
+  "mcpServers": {
+    "yahont": {
+      "type": "http",
+      "url": "https://your-yahont-domain.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${ONYX_TOKEN}"
+      }
+    }
+  }
+}
+```
+
+Затем задайте переменную окружения перед запуском Claude Code:
+
+```bash
+export ONYX_TOKEN="your-token-here"
+claude
+```
+
+### Claude Desktop {#claude-desktop}
+
+Добавьте следующее в файл конфигурации Claude Desktop:
+
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "yahont": {
+      "url": "https://your-yahont-domain.com/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_YAHONT_TOKEN_HERE"
+      }
+    }
+  }
+}
+```
+
+<Tip>
+  Замените `your-yahont-domain.com` на адрес вашего Yahont. После запуска Yahont Cloud добавим его адрес.
+</Tip>
+
+### Cursor / Windsurf / другие MCP-клиенты {#cursor-windsurf-other-mcp-clients}
+
+Большинство MCP-клиентов поддерживают транспорт HTTP с пользовательскими заголовками. Параметры подключения:
+
+| Параметр | Значение |
+|---|---|
+| **URL** | `https://your-yahont-domain.com/mcp` |
+| **Transport** | HTTP (Streamable HTTP) |
+| **Auth Header** | `Authorization: Bearer YOUR_TOKEN` |
+
+Точные шаги настройки см. в документации MCP вашего клиента.
+
+## Доступные инструменты {#available-tools}
+
+MCP-сервер предоставляет три инструмента, которые могут вызывать клиенты LLM:
+
+<AccordionGroup>
+  <Accordion title="search_indexed_documents" icon="magnifying-glass">
+    Поиск по вашей приватной базе знаний, проиндексированной в Yahont.
+    Возвращает ранжированные фрагменты документов с содержимым, оценками релевантности и метаданными.
+
+    **Параметры:**
+
+    | Параметр | Тип | Обязателен | По умолчанию | Описание |
+    |---|---|---|---|---|
+    | `query` | string | Да | — | Поисковый запрос на естественном языке |
+    | `source_types` | string[] | Нет | Все источники | Фильтр по типу коннектора (например, `["confluence", "github", "jira"]`) |
+    | `time_cutoff` | string | Нет | Без ограничения | Дата и время в формате ISO 8601 — возвращаются только документы, обновлённые после этого момента |
+    | `limit` | integer | Нет | `10` | Максимальное число возвращаемых результатов |
+
+    **Пример вызова:**
+
+    ```json
+    {
+      "query": "What is the latest status of PROJ-1234?",
+      "source_types": ["jira", "google_drive"],
+      "time_cutoff": "2025-01-01T00:00:00Z",
+      "limit": 5
+    }
+    ```
+
+    **Поля ответа:**
+
+    | Поле | Описание |
+    |---|---|
+    | `documents` | Массив объектов результатов |
+    | `documents[].semantic_identifier` | Понятное название документа |
+    | `documents[].content` | Релевантный фрагмент текста |
+    | `documents[].source_type` | Источник коннектора (например, `"confluence"`) |
+    | `documents[].link` | URL исходного документа |
+    | `documents[].score` | Оценка релевантности |
+    | `total_results` | Число возвращённых результатов |
+    | `query` | Исходный запрос |
+    | `executed_queries` | Список фактически выполненных запросов (может включать расширения) |
+
+    <Tip>
+      Чтобы узнать, какие типы источников доступны, используйте ресурс `indexed_sources` (см. ниже).
+    </Tip>
+  </Accordion>
+
+  <Accordion title="search_web" icon="globe">
+    Поиск в публичном интернете по общим знаниям и текущим событиям.
+
+    **Параметры:**
+
+    | Параметр | Тип | Обязателен | По умолчанию | Описание |
+    |---|---|---|---|---|
+    | `query` | string | Да | — | Поисковый запрос |
+    | `limit` | integer | Нет | `5` | Максимальное число результатов |
+
+    **Пример вызова:**
+
+    ```json
+    {
+      "query": "React 19 migration guide",
+      "limit": 5
+    }
+    ```
+
+    **Поля ответа:**
+
+    | Поле | Описание |
+    |---|---|
+    | `results` | Массив результатов веб-поиска |
+    | `results[].title` | Заголовок страницы |
+    | `results[].url` | URL страницы |
+    | `results[].snippet` | Короткий фрагмент текста |
+    | `query` | Исходный запрос |
+
+    <Note>
+      `search_web` возвращает фрагменты, а не полное содержимое страницы. Используйте `open_urls`,
+      чтобы получить полный текст любого результата.
+    </Note>
+  </Accordion>
+
+  <Accordion title="open_urls" icon="link">
+    Получение полного текстового содержимого одного или нескольких веб-URL.
+
+    **Параметры:**
+
+    | Параметр | Тип | Обязателен | Описание |
+    |---|---|---|---|
+    | `urls` | string[] | Да | Список URL для получения |
+
+    **Пример вызова:**
+
+    ```json
+    {
+      "urls": [
+        "https://react.dev/blog/2024/12/05/react-19",
+        "https://react.dev/learn/react-compiler"
+      ]
+    }
+    ```
+
+    **Поля ответа:**
+
+    | Поле | Описание |
+    |---|---|
+    | `results` | Массив полученных страниц |
+    | `results[].title` | Заголовок страницы |
+    | `results[].url` | Полученный URL |
+    | `results[].content` | Полный извлечённый текст |
+  </Accordion>
+</AccordionGroup>
+
+## Доступные ресурсы {#available-resources}
+
+<AccordionGroup>
+  <Accordion title="indexed_sources" icon="database">
+    **URI:** `resource://indexed_sources`
+
+    Перечисляет все типы коннекторов документов, проиндексированные в вашем инстансе Yahont в данный момент (например,
+    `"confluence"`, `"github"`, `"google_drive"`, `"slack"`).
+
+    Используйте это, чтобы узнать допустимые значения фильтра `source_types` в `search_indexed_documents`.
+
+    **Пример ответа:**
+
+    ```json
+    {
+      "indexed_sources": ["confluence", "github", "google_drive", "jira", "slack"]
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Конфигурация с самостоятельным размещением {#self-hosted-configuration}
+
+Чтобы разместить MCP-сервер самостоятельно, нужно включить его развёртывание через переменные окружения.
+
+Docker Compose:
+
+<Steps>
+  <Step title="Раскомментируйте блок mcp_server">
+    В `deployment/docker_compose/docker-compose.yml` раскомментируйте блок `mcp_server` и в секции `volumes` строку
+    `mcp_server_logs:`.
+  </Step>
+
+  <Step title="Включите MCP-сервер">
+    Задайте в `.env`:
+
+    ```bash .env
+    MCP_SERVER_ENABLED=true
+    ```
+  </Step>
+
+  <Step title="Запустите сервисы">
+    ```bash
+    docker compose up -d
+    ```
+  </Step>
+</Steps>
+
+Клиентам MCP-сервер доступен через nginx по адресу `https://your-yahont-domain.com/mcp`.
+Порт `8090` в Docker Compose не публикуется.
+
+{/* Kubernetes:
+
+```yaml values.yaml
+configMap:
+  MCP_SERVER_ENABLED: "true"
+```
+
+*/}
+
+### Проверка состояния {#health-check}
+
+Убедитесь, что MCP-сервер работает. Запрос идёт через nginx: он убирает префикс `/mcp` и передаёт `/health` серверу.
+
+```bash
+curl https://your-yahont-domain.com/mcp/health
+```
+
+Ожидаемый ответ:
+
+```json
+{
+  "status": "healthy",
+  "service": "mcp_server"
+}
+```
+
+### Переменные окружения {#environment-variables}
+
+<Info>
+  Большинству пользователей не нужно настраивать эти переменные окружения.
+</Info>
+
+| Переменная | По умолчанию | Описание |
+|---|---|---|
+| `MCP_SERVER_ENABLED` | `false` | Задайте `"true"`, чтобы включить MCP-сервер |
+| `MCP_SERVER_HOST` | `0.0.0.0` | Хост, к которому привязывается MCP-сервер |
+| `MCP_SERVER_PORT` | `8090` | Порт MCP-сервера |
+| `MCP_SERVER_CORS_ORIGINS` | (пусто) | Список разрешённых источников CORS через запятую |
+| `API_SERVER_PROTOCOL` | `http` | Протокол внутреннего подключения к API-серверу |
+| `API_SERVER_HOST` | `127.0.0.1` | Имя хоста внутреннего подключения к API-серверу |
+| `API_SERVER_URL_OVERRIDE_FOR_HTTP_REQUESTS` | (не задано) | Полное переопределение URL API-сервера. Используйте, когда вы размещаете MCP-сервер самостоятельно для Yahont Cloud |
+
+## Отладка и тестирование {#debugging-testing}
+
+### MCP Inspector {#mcp-inspector}
+
+[MCP Inspector](https://github.com/modelcontextprotocol/inspector) — интерактивный инструмент отладки MCP-серверов:
+
+```bash
+npx @modelcontextprotocol/inspector
+```
+
+**Настройка в Inspector:**
+
+- Игнорируйте меню настройки OAuth
+- Откройте вкладку **Authentication**
+- Выберите аутентификацию **Bearer Token**
+- Вставьте ваш PAT или ключ API Yahont
+- Нажмите **Connect**
+
+После подключения можно просматривать инструменты, тестировать вызовы с разными параметрами и изучать запросы и ответы.
+
+## Дальнейшие шаги {#next-steps}
+
+<CardGroup cols={2}>
+  <Card title="Персональные токены доступа" icon="key" href="/developers/overview#personal-access-tokens">
+    Создайте токен для аутентификации на MCP-сервере
+  </Card>
+
+  <Card title="Ключи API" icon="shield-check" href="/admins/user_management/api_keys">
+    Создайте общие ключи API для командного доступа к MCP
+  </Card>
+
+  <Card title="Коннекторы" icon="plug" href="/admins/connectors/overview">
+    Добавьте источники данных, чтобы сделать знания доступными для поиска через MCP
+  </Card>
+
+  <Card title="Действия MCP" icon="diagram-project" href="/admins/actions/mcp">
+    Подключите Yahont к внешним MCP-серверам как клиент
+  </Card>
+</CardGroup>

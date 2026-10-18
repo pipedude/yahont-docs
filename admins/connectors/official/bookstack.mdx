@@ -1,0 +1,58 @@
+---
+title: "BookStack"
+description: "Доступ к знаниям из вашего инстанса BookStack"
+---
+
+## Как это работает {#how-it-works}
+
+Коннектор BookStack при настройке получает все полки, книги, главы и страницы из подключённого инстанса.
+Затем коннектор каждые **10** минут получает всё, что обновилось с момента последней синхронизации.
+
+## Настройка {#setting-up}
+
+### Авторизация {#authorization}
+
+Вам понадобятся учётные данные API пользователя в вашем инстансе BookStack. Для этого:
+
+<Steps>
+  <Step title="Создайте или выберите пользователя для подключения">
+    Найдите или создайте пользователя, которого хотите использовать для подключения.
+    - Видимость содержимого BookStack зависит от прав этого пользователя.
+    - У этого пользователя должна быть роль с системным разрешением «Access system API».
+  </Step>
+
+  <Step title="Откройте API Tokens">
+    Откройте редактирование этого пользователя под аккаунтом администратора и найдите раздел «API Tokens» внизу
+    страницы.
+
+    <img className="rounded-image" src="/assets/admins/connectors/bookstack/BookstackApiTokenList.png" alt="Список API-токенов BookStack"/>
+  </Step>
+
+  <Step title="Создайте и скопируйте токен">
+    Нажмите кнопку «Create Token», введите название и (необязательно) срок действия токена. Затем нажмите «Сохранить».
+    Скопируйте показанные значения «Token ID» и «Token Secret» для раздела «Индексирование» ниже.
+
+    <img className="rounded-image" src="/assets/admins/connectors/bookstack/BookstackApiToken.png" alt="Просмотр API-токена BookStack"/>
+  </Step>
+</Steps>
+
+### Индексирование {#indexing}
+
+<Steps>
+  <Step title="Откройте коннектор BookStack">
+    Откройте панель администратора и выберите коннектор **BookStack**.
+  </Step>
+
+  <Step title="Введите URL и токены">
+    На **шаге 1** укажите базовый URL вашего инстанса BookStack вместе с **Token ID** и **Token Secret** API,
+    полученными на шагах раздела «Авторизация» выше:
+
+    <img className="rounded-image" src="/assets/admins/connectors/bookstack/BookstackAuth.png" alt="Шаг 1 настройки коннектора BookStack"/>
+  </Step>
+
+  <Step title="Запустите индексацию">
+    Нажмите кнопку `Подключить`! Ваше содержимое будет загружаться в Yahont каждые **10** минут.
+
+    <img className="rounded-image" src="/assets/admins/connectors/bookstack/BookstackIndex.png" alt="Шаг 2 настройки коннектора BookStack"/>
+  </Step>
+</Steps>

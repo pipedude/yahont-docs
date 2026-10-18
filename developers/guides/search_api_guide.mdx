@@ -1,0 +1,105 @@
+---
+title: "Поиск через API"
+description: "Программно запрашивайте индекс Yahont и получайте ранжированные документы"
+icon: "magnifying-glass"
+---
+
+Конечная точка [`POST /search`](/developers/api_reference/search/search)
+возвращает результаты поиска Yahont внутри вашего приложения: конвейеры RAG, агенты, интеграции — всё,
+где нужны ранжированные фрагменты, а не ответ. Она выполняет тот же конвейер извлечения, что и действие «Поиск» в чате.
+
+Конечная точка не генерирует ответ. Чтобы модель прочитала результаты и написала ответ,
+используйте вместо неё [`POST /chat/send-chat-message`](/developers/api_reference/chat/handle_send_chat_message).
+
+<Note>
+  Конечная точка ищет только по документам, которые разрешено видеть вызывающему пользователю,
+  поэтому один и тот же запрос двух пользователей может вернуть разные результаты. Ей также нужна векторная база данных:
+  в развёртываниях с заданным `DISABLE_VECTOR_DB` (Yahont Lite) она отвечает `501`.
+</Note>
+
+## POST /search {#post-search}
+
+Для запроса нужен только текст запроса. Всё остальное сужает поиск или меняет интерпретацию запроса.
+
+| Параметр | Описание |
+|-----------|-------------|
+| `query` | Запрос для поиска. От 1 до 2048 символов. |
+| `sources` | Ограничить результаты этими типами источников коннекторов, например `["slack", "google_drive"]`. |
+| `document_sets` | Ограничить результаты документами из этих наборов документов (по названию). |
+| `tags` | Ограничить результаты документами, у которых есть все эти теги метаданных, в виде списка объектов `{"tag_key": ..., "tag_value": ...}`. |
+| `time_cutoff` | Временная метка ISO 8601. Возвращаются только документы, обновлённые в этот момент или позже. Метки без часового пояса считаются UTC. |
+| `persona_id` | Искать от имени агента. Наборы документов агента, прикреплённые документы и дата начала поиска применяются поверх остальных фильтров, а его LLM используется для расширения запроса. |
+| `provider` / `model` | LLM, используемая для расширения запроса и выбора разделов. Нужно передавать оба параметра вместе, и у вызывающего пользователя должен быть доступ к поставщику. По умолчанию используется LLM агента или LLM развёртывания по умолчанию. |
+| `skip_query_expansion` | Выполнить запрос как написан, не переписывая и не расширяя его. Полезно, когда запрос уже точен или у вас есть собственный шаг расширения. |
+| `message_history` | Предыдущие реплики разговора, чтобы запрос вроде «а что в прошлом квартале?» интерпретировался в контексте. По умолчанию используется только `query`. |
+
+Результаты возвращаются начиная с самых релевантных:
+
+```json
+{
+  "results": [
+    {
+      "citation_id": 1,
+      "title": "Q3 Planning",
+      "content": "Full text of the matched section...",
+      "link": "https://...",
+      "source_type": "google_drive",
+      "updated_at": "2026-08-14T09:31:00Z"
+    }
+  ]
+}
+```
+
+`citation_id` определяет исходный документ, а не результат: несколько результатов используют один `citation_id`,
+когда поиск вернул несколько непересекающихся разделов одного документа.
+
+<CodeGroup>
+  ```python Python expandable
+  import requests
+
+  API_BASE_URL = "https://your-yahont-domain.com/api"
+  API_KEY = "YOUR_KEY_HERE"
+
+  response = requests.post(
+      f"{API_BASE_URL}/search",
+      headers={
+          "Authorization": f"Bearer {API_KEY}",
+          "Content-Type": "application/json",
+      },
+      json={
+          "query": "What is our parental leave policy?",
+          "sources": ["confluence", "google_drive"],
+      },
+  )
+
+  for result in response.json()["results"]:
+      print(f"[{result['citation_id']}] {result['title']} - {result['link']}")
+  ```
+
+  ```bash Shell expandable
+  #!/bin/bash
+
+  API_BASE_URL="https://your-yahont-domain.com/api"
+  API_KEY="YOUR_KEY_HERE"
+
+  curl -s -X POST "${API_BASE_URL}/search" \
+    -H "Authorization: Bearer ${API_KEY}" \
+    -H "Content-Type: application/json" \
+    -d '{
+      "query": "What is our parental leave policy?",
+      "sources": ["confluence", "google_drive"]
+    }' | jq '.results[] | {citation_id, title, link}'
+  ```
+</CodeGroup>
+
+## Дальнейшие шаги {#next-steps}
+
+<CardGroup cols={2}>
+  <Card title="Руководство: отправка сообщения в Yahont" icon="bolt" href="/developers/guides/chat_new_guide">
+    Пусть агент прочитает результаты и ответит, а не только ранжирует документы
+  </Card>
+
+  <Card title="Руководство: использование Ingestion API" icon="upload" href="/developers/guides/index_files_ingestion_api">
+    Проиндексируйте собственные документы, чтобы они появлялись в поиске
+  </Card>
+</CardGroup>

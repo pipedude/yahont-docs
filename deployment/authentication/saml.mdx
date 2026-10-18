@@ -1,0 +1,127 @@
+---
+title: "SAML"
+description: "Настройка аутентификации SAML"
+icon: "sitemap"
+---
+
+Настройте в Yahont аутентификацию SAML.
+
+Поставщики SAML настраиваются в **Панель администратора** → **Организация** → [Поставщики
+SSO](/deployment/authentication/sso_providers). Файлы конфигурации и перезапуски не нужны,
+и можно настроить несколько поставщиков и включить их одновременно (см.
+[Доступность в Yahont CE и Enterprise Edition](/deployment/authentication/sso_providers#plan-availability)).
+SAML работает на стандартных образах Yahont.
+
+<Note>
+  В Yahont Cloud SAML недоступен: там можно выбрать только Google и OIDC. См.
+  раздел [Yahont Cloud](/deployment/authentication/sso_providers#onyx-cloud).
+</Note>
+
+В этом руководстве описана настройка для Okta. Другие поставщики удостоверений настраиваются похожим образом.
+Свяжитесь с нами, если нужна помощь с другим поставщиком удостоверений.
+
+## Руководство {#guide}
+
+<Steps>
+  <Step title="Создайте приложение Okta">
+    Откройте Okta **Admin Console** → **Applications** → **Create App Integration**.
+
+    <img className="rounded-image" src="/assets/deployment/oidc_create_integration.png" alt="Страница создания интеграции в Okta"/>
+  </Step>
+
+  <Step title="Настройте приложение Okta">
+    Выберите **SAML 2.0**.
+
+    Задайте **Name** приложения `Yahont` и загрузите логотип Yahont.
+
+    <Tip>
+      Если вы используете white labeling Yahont, приложение можно назвать как угодно и загрузить собственный логотип.
+    </Tip>
+
+    Добавьте **Single sign-on URL** (URL ACS, общий для всех поставщиков SAML в инстансе):
+
+      ```
+      https://YOUR_YAHONT_DOMAIN.com/auth/saml/callback
+      ```
+
+    Добавьте **Audience URI (SP Entity ID)**. Подойдёт любой стабильный идентификатор, если он совпадает с SP entity ID,
+    который вы вводите в Yahont:
+
+      ```
+      https://YOUR_YAHONT_DOMAIN.com/metadata
+      ```
+
+    Добавьте **Attribute Statement**, где **Name** — `email`, а **Value** — `user.email`.
+
+    <img className="rounded-image" src="/assets/deployment/saml_config.png" alt="Страница настройки приложения SAML в Okta"/>
+  </Step>
+
+  <Step title="Назначьте пользователей приложению">
+    Создайте приложение и откройте вкладку **Assignments**, чтобы назначить пользователей.
+  </Step>
+
+  <Step title="Соберите значения IdP">
+    Yahont нужны три значения из Okta:
+
+    <AccordionGroup>
+      <Accordion title="IdP Entity ID">
+        Откройте вкладку **Sign On** вашего приложения в Okta, скопируйте **Metadata URL** и вставьте его в браузер.
+        Вы должны увидеть XML вида:
+
+        ```XML
+        <md:EntityDescriptor
+            xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+            entityID="http://www.okta.com/exkngircrvOYQyNg35d7">
+        ...
+        </md:EntityDescriptor>
+        ```
+
+        Скопируйте значение `entityID`.
+      </Accordion>
+
+      <Accordion title="IdP x509 Certificate">
+        В XML с предыдущего шага найдите элемент `ds:X509Certificate`.
+
+        ```XML
+        <md:KeyDescriptor use="signing">
+            <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+                <ds:X509Data>
+                    <ds:X509Certificate>
+                        [Some certificate value here]
+                    </ds:X509Certificate>
+                </ds:X509Data>
+            </ds:KeyInfo>
+        </md:KeyDescriptor>
+        ```
+
+        Скопируйте значение сертификата.
+      </Accordion>
+
+      <Accordion title="IdP SSO URL">
+        Откройте вкладку **General** вашего приложения в Okta и скопируйте **Embed Link**.
+      </Accordion>
+    </AccordionGroup>
+  </Step>
+
+  <Step title="Добавьте поставщика в Yahont">
+    Откройте **Панель администратора** → **Организация** → [Провайдеры SSO](/deployment/authentication/sso_providers)
+    и нажмите **Add Provider**.
+
+    Выберите тип поставщика **SAML**, задайте поставщику **Name** (slug в нижнем регистре, например `okta`)
+    и вставьте **IdP entity ID**, **IdP SSO URL**, **IdP x509 certificate** и **SP entity ID** из приложения Okta.
+
+    <Accordion title="Необязательно: сертификат SP и закрытый ключ">
+      Если ваш IdP требует подписанных запросов,
+      создайте самоподписанный сертификат и введите оба значения в форме поставщика:
+
+      ```bash
+      openssl genrsa -out sp-private-key.pem 2048
+      openssl req -new -x509 -key sp-private-key.pem -out sp-cert.pem -days 730 -subj "/CN=<YOUR_DOMAIN e.g. saml.yahont.example.com>"
+      ```
+    </Accordion>
+
+    После создания поставщика в его строке показывается точный **ACS URL**. Убедитесь,
+    что он совпадает с single sign-on URL, зарегистрированным в Okta,
+    затем войдите через новый вариант на странице входа.
+  </Step>
+</Steps>

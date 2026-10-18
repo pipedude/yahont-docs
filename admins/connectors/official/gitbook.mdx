@@ -1,0 +1,50 @@
+---
+title: "GitBook"
+description: "Доступ к документации из GitBook"
+---
+
+## Как это работает {#how-it-works}
+
+Коннектор GitBook получает всё содержимое документации из указанных вами пространств GitBook.
+
+## Настройка {#setting-up}
+
+### Авторизация {#authorization}
+
+<Steps>
+  <Step title="Откройте настройки разработчика">
+    Откройте настройки аккаунта GitBook и перейдите в раздел «Developers» (https://app.gitbook.com/account/developer)
+  </Step>
+
+  <Step title="Создайте API-токен">
+    Нажмите «Create new token». Задайте токену имя и выберите нужные области. Нажмите «Create», чтобы создать API-токен.
+  </Step>
+
+  <Step title="Скопируйте и сохраните токен">
+    Скопируйте и надёжно сохраните токен — вы больше не сможете его увидеть.
+  </Step>
+</Steps>
+
+<img className="rounded-image" src="/assets/admins/connectors/gitbook/gitbook_1.png" alt="Страница разработчика GitBook"/>
+
+### Индексирование {#indexing}
+
+<Steps>
+  <Step title="Откройте коннектор GitBook">
+    Откройте панель администратора и выберите коннектор **GitBook**
+  </Step>
+
+  <Step title="Введите API-токен">
+    На **шаге 1** вставьте **API Token** с предыдущего шага
+
+    <img className="rounded-image" src="/assets/admins/connectors/gitbook/gitbook_2.png" alt="Настройка API GitBook"/>
+  </Step>
+
+  <Step title="Введите Space ID и подключитесь">
+    Введите **Space ID** — его можно найти в URL вашего пространства GitBook (например,
+    `https://app.gitbook.com/o/<organization>/s/<space-id>`). Нажмите «Подключить»,
+    чтобы начать индексацию содержимого GitBook.
+
+    <img className="rounded-image" src="/assets/admins/connectors/gitbook/gitbook_3.png" alt="Настройка пространства GitBook"/>
+  </Step>
+</Steps>

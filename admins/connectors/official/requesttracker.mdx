@@ -1,0 +1,39 @@
+---
+title: "RequestTracker"
+description: "Доступ к заявкам из RequestTracker"
+---
+
+## Как это работает {#how-it-works}
+
+Коннектор Request Tracker загружает в набор данных все заявки, обновлённые за последние 10 минут.
+
+Заявки обновляются каждые **10** минут.
+
+Сейчас поддерживается только Request Tracker REST API 1.0. REST API 1.0 реализован в Request Tracker 4.x,
+Request Tracker 5.x пока не поддерживается.
+
+## Настройка {#setting-up}
+
+### Создайте или используйте пользователя Request Tracker с нужными правами {#create-or-use-a-request-tracker-user-who-has-the-appropriate-permissions}
+
+- Создайте пользователя Request Tracker с правом чтения всех очередей, которые должен читать Yahont.
+
+### Настройте коннектор Request Tracker и начните индексацию {#configure-request-tracker-connector-and-begin-indexing}
+
+<Steps>
+  <Step title="Откройте коннектор Request Tracker">
+    Откройте панель администратора и выберите коннектор **Request Tracker**
+  </Step>
+
+  <Step title="Введите учётные данные">
+    На **шаге 1** укажите **имя пользователя**, **пароль** и **базовый URL установки RT** Request Tracker.
+
+    <img className="rounded-image" src="/assets/admins/connectors/requesttracker/RequestTrackerAuth.png" alt="Форма учётных данных коннектора Request Tracker в Yahont"/>
+  </Step>
+
+  <Step title="Запустите индексацию">
+    На **шаге 2** нажмите `Подключить`, чтобы начать индексацию
+
+    <img className="rounded-image" src="/assets/admins/connectors/requesttracker/RequestTrackerConnect.png" alt="Шаг индексации коннектора Request Tracker в Yahont"/>
+  </Step>
+</Steps>

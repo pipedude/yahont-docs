@@ -1,0 +1,109 @@
+---
+title: "Amazon Bedrock"
+description: "Настройка моделей Amazon Bedrock для использования с Yahont"
+icon: "aws"
+---
+
+import NavigateToAiModels from "/snippets/navigate-to-ai-models.mdx";
+import StandardAiModelConfigs from "/snippets/standard-ai-model-configs.mdx";
+
+## Методы аутентификации {#authentication-methods}
+
+Yahont поддерживает 3 метода аутентификации для Amazon Bedrock:
+
+<AccordionGroup>
+  <Accordion title="IAM (рекомендуется для сред AWS)">
+    - Автоматически авторизует Yahont через роль IAM, присоединённую к среде
+    - Используйте при работе в инфраструктуре AWS (EC2, EKS)
+
+    Чтобы подключить Yahont к Bedrock через IAM, создайте роль IAM с политикой `AmazonBedrockLimitedAccess`.
+    При желании можно также присоединить политики `AmazonBedrockFullAccess` и `AmazonBedrockMarketplaceAccess`.
+
+    После создания присоедините роль IAM к среде, в которой работает Yahont. Например,
+    присоедините роль IAM к инстансу EC2 с Yahont или к сервисному аккаунту EKS.
+  </Accordion>
+
+  <Accordion title="Ключ доступа (для сред вне AWS)">
+    - Ручное управление учётными данными с помощью Access Key ID и Secret Access Key
+    - Рекомендуется для доступа к Bedrock из сред вне AWS
+
+    Чтобы подключить Yahont к Bedrock с помощью ключей доступа,
+    создайте пользователя IAM с политикой `AmazonBedrockLimitedAccess`.
+    При желании можно также присоединить политики `AmazonBedrockFullAccess` и `AmazonBedrockMarketplaceAccess`.
+
+    После создания откройте вкладку **Security Credentials** вашего пользователя IAM.
+    Создайте новый **Access Key** и скопируйте **Access Key ID** и **Secret Access Key**.
+
+    Передайте эти учётные данные Yahont одним из способов:
+    - Добавьте их в файл `.env` Yahont как `AWS_ACCESS_KEY_ID` и `AWS_SECRET_ACCESS_KEY`
+    - Добавьте их в конфигурацию AWS CLI в `~/.aws/credentials`
+    - Введите их прямо в интерфейсе настройки Bedrock в Yahont
+  </Accordion>
+
+  <Accordion title="API-ключ Bedrock (для сред вне AWS)">
+    - Новый способ доступа к Bedrock, создаваемый в консоли AWS Bedrock
+    - Рекомендуется для доступа к Bedrock из сред вне AWS
+
+    Чтобы подключить Yahont к Bedrock с помощью API-ключа, откройте консоль Bedrock,
+    выберите **API keys** и создайте **Long-term API key**.
+    AWS автоматически создаст нового пользователя IAM с политикой `AmazonBedrockLimitedAccess`.
+
+    Передайте свой API-ключ Yahont через интерфейс настройки Bedrock в Yahont.
+  </Accordion>
+</AccordionGroup>
+
+<Note>
+  При использовании роли IAM учётные данные роли должны быть присоединены к среде Yahont.
+  При использовании ключей доступа или API-ключа Bedrock учётные данные нужно указать в интерфейсе настройки LLM в
+  Yahont.
+</Note>
+
+## Руководство {#guide}
+
+<Steps>
+  <Step title="Выберите метод аутентификации">
+    Определите, какой метод аутентификации лучше всего подходит для вашей среды: IAM,
+    ключи доступа или API-ключ Bedrock.
+
+    Нажмите на аккордеоны выше, чтобы узнать больше о каждом методе и о том, как их настроить.
+  </Step>
+
+  <Step title="Включите нужные модели">
+    Откройте **Model Catalog** и решите, какие модели хотите использовать с Yahont.
+
+    Если у вас ещё нет доступа к нужным моделям, его можно запросить в консоли Bedrock.
+
+    <Note>
+      Если модели не включены, вы не увидите их в Yahont! Убедитесь, что модели доступны, прежде чем продолжать.
+    </Note>
+  </Step>
+
+  <NavigateToAiModels />
+
+  <Step title="Настройте поставщика Bedrock">
+    Выберите **AWS Bedrock** среди доступных поставщиков.
+
+    Задайте поставщику **отображаемое имя**.
+
+    Определите свой регион AWS и введите его в поле **AWS Region Name**.
+
+    <Tip>
+      Некоторые модели доступны только в определённых регионах или через межрегиональные профили вывода.
+      Yahont автоматически определит, что доступно в вашем регионе.
+    </Tip>
+
+    В зависимости от метода аутентификации заполните `AWS Access Key ID` и `AWS Secret Access Key` или `AWS Bedrock API
+    Key`.
+
+    Когда регион и учётные данные заданы, нажмите кнопку **Fetch Available Model for Region**.
+
+    <Warning>
+      Если не нажать кнопку **Fetch Available Model for Region**, вы увидите все модели Bedrock,
+      даже если не можете ими пользоваться.
+    </Warning>
+
+    <img className="rounded-image" src="/assets/admins/ai_models/bedrock_config.png" alt="Настройка поставщика Bedrock"/>
+  </Step>
+
+  <StandardAiModelConfigs />
+</Steps>

@@ -1,0 +1,59 @@
+---
+title: "Zulip"
+description: "Доступ к сообщениям из потоков Zulip"
+---
+
+## Как это работает {#how-it-works}
+
+Коннектор Zulip получает все потоки и темы в соответствии с правами, назначенными пользователю-боту.
+
+## Настройка {#setting-up}
+
+### Авторизация {#authorization}
+
+<Steps>
+  <Step title="Как работает аутентификация бота Zulip">
+    Yahont взаимодействует с Zulip как бот Zulip, аутентифицируемый с помощью формата конфигурации `zuliprc`.
+    Подробнее от самого Zulip смотрите в документации:
+    - https://zulip.com/api/running-bots
+    - https://zulip.com/api/configuring-python-bindings
+  </Step>
+
+  <Step title="Создайте бота Zulip">
+    Начните с создания бота Zulip.
+
+    <img className="rounded-image" src="/assets/admins/connectors/zulip/ZulipBot.png" alt="Создание пользователя-бота в настройках Zulip"/>
+  </Step>
+
+  <Step title="Скопируйте содержимое zuliprc">
+    Скопируйте данные аутентификации бота (содержимое `zuliprc`), см. красную стрелку ниже:
+
+    <img className="rounded-image" src="/assets/admins/connectors/zulip/ZulipRC.png" alt="Страница бота Zulip с выделенной загрузкой конфигурации zuliprc"/>
+
+    Сохраните скопированный текст, чтобы передать его в Yahont на следующем шаге
+  </Step>
+</Steps>
+
+### Индексирование {#indexing}
+
+<Steps>
+  <Step title="Откройте коннектор Zulip">
+    Откройте панель администратора и выберите коннектор **Zulip**
+  </Step>
+
+  <Step title="Вставьте zuliprc">
+    На **шаге 1** вставьте скопированное значение `zuliprc`
+  </Step>
+
+  <Step title="Получите Realm/URL">
+    Найдите сведения Zulip Realm/URL, см. ниже:
+
+    <img className="rounded-image" src="/assets/admins/connectors/zulip/ZulipRealmURL.png" alt="Интерфейс Zulip с данными Realm и URL"/>
+  </Step>
+
+  <Step title="Введите Realm и URL">
+    На **шаге 2** укажите значения Realm и URL
+
+    <img className="rounded-image" src="/assets/admins/connectors/zulip/OnyxZulipConfig.png" alt="Настройка коннектора Zulip в Yahont: realm, URL и zuliprc"/>
+  </Step>
+</Steps>

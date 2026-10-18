@@ -1,0 +1,232 @@
+---
+title: "RDS"
+description: "Настройка AWS RDS для Yahont"
+---
+
+import DeploymentNextSteps from "/snippets/deployment-next-steps.mdx"
+
+AWS RDS предоставляет Yahont управляемую базу данных PostgreSQL.
+В этом руководстве описаны обычная аутентификация и аутентификация IAM для повышенной безопасности.
+
+## Руководство {#guide}
+
+<Steps>
+  <Step title="Создайте инстанс RDS PostgreSQL">
+    Откройте консоль Amazon RDS и создайте новую базу данных PostgreSQL.
+
+    - Нажмите **Create database**
+    - Выберите **PostgreSQL** как тип движка
+    - Выберите **Standard create** как способ создания
+    - Выберите нужную **PostgreSQL version**
+    - Выберите шаблон **Production** или **Dev/Test** по необходимости
+  </Step>
+
+  <Step title="Настройте параметры базы данных">
+    Задайте идентификатор базы данных, учётные данные и конфигурацию инстанса.
+
+    **Settings:**
+    - Задайте понятный **DB instance identifier**, например `onyx-prod-db`
+    - Задайте **Master username** (например, `postgres`)
+    - Задайте надёжный **Master password** и подтвердите его
+
+    **Instance configuration:**
+    - Выберите подходящий **Instance class** (например, `db.t3.micro` для тестирования, `db.t3.medium` для продакшена)
+    - Настройте размер **Storage** и при необходимости включите автомасштабирование
+
+    <Tip>
+      Надёжно сохраните учётные данные базы данных — они понадобятся для настройки Yahont.
+    </Tip>
+  </Step>
+
+  <Step title="Настройте подключение и безопасность">
+    Настройте сетевой доступ и группы безопасности для вашей базы данных.
+
+    - Выберите **VPC** и **Subnet group**
+    - Настройте **VPC security group**, чтобы разрешить доступ с вашего инстанса Yahont
+    - Задайте **Public access** в «No» для продакшена (рекомендуется)
+    - Выберите нужную **Availability Zone**
+
+    Нажмите **Create database**, чтобы запустить инстанс RDS.
+  </Step>
+
+  <Step title="Настройте переменные окружения Yahont">
+    Когда инстанс RDS запустится, настройте Yahont для подключения к нему.
+
+    Получите сведения о базе данных в консоли RDS:
+    - **Endpoint**: указан в сведениях об инстансе RDS
+    - **Port**: обычно `5432`
+    - **Database name**: имя вашей базы данных или `postgres`, если используется значение по умолчанию
+
+    **Для развёртываний Docker** добавьте эти переменные в файл `.env`:
+
+        ```bash
+        USE_IAM_AUTH=false
+        POSTGRES_HOST=<your-rds-endpoint>
+        POSTGRES_PORT=5432
+        POSTGRES_DB=<your-database-name>
+        POSTGRES_USER=<your-master-username>
+        POSTGRES_PASSWORD=<your-master-password>
+        ```
+
+    **Для развёртываний EKS** добавьте это в файл `values.yaml`:
+
+        ```yaml
+        auth:
+          secrets:
+            POSTGRES_PASSWORD: "<your-master-password>"
+        configMap:
+          USE_IAM_AUTH: "false"
+          POSTGRES_HOST: "<your-rds-endpoint>"
+          POSTGRES_PORT: "5432"
+          POSTGRES_DB: "<your-database-name>"
+          POSTGRES_USER: "<your-master-username>"
+        ```
+
+    Теперь Yahont будет подключаться к вашему инстансу RDS PostgreSQL с этими учётными данными.
+  </Step>
+</Steps>
+
+## Необязательно: включение аутентификации IAM {#optional-enable-iam-authentication}
+
+Для повышенной безопасности можно включить аутентификацию базы данных IAM вместо статических паролей.
+Это позволяет Yahont подключаться с помощью краткоживущих учётных данных IAM.
+
+<Steps>
+  <Step title="Включите аутентификацию IAM в RDS">
+    Откройте инстанс RDS в консоли AWS и включите аутентификацию IAM.
+
+    - Откройте ваш инстанс RDS PostgreSQL
+    - Нажмите **Modify**
+    - В разделе **Database authentication** включите **IAM database authentication**
+    - Нажмите **Continue**, затем **Apply immediately**
+  </Step>
+
+  <Step title="Создайте пользователя базы данных IAM">
+    Подключитесь к базе данных и создайте пользователя для аутентификации IAM.
+
+    С учётными данными администратора выполните эти команды SQL:
+
+      ```sql
+      CREATE ROLE onyxuser LOGIN;
+      GRANT rds_iam TO onyxuser;
+      ALTER ROLE onyxuser WITH NOINHERIT;
+      GRANT CREATE ON DATABASE <your-db-name> TO onyxuser;
+      GRANT USAGE ON SCHEMA public TO onyxuser;
+      GRANT CREATE ON SCHEMA public TO onyxuser;
+        ```
+  </Step>
+
+  <Step title="Настройте политику IAM">
+    Создайте политику IAM, разрешающую подключения к базе данных.
+
+    Получите `DbiResourceId` или `DbClusterResourceId`:
+
+      ```bash
+      aws rds describe-db-instances \
+        --db-instance-identifier <your-db-instance-name> \
+        --region <your-region>
+      ```
+
+    Создайте эту политику IAM, укажите `region`, `account-id`, `resource-id` и прикрепите её к роли вашего инстанса EC2:
+
+      ```json
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Action": "rds-db:connect",
+            "Resource": "arn:aws:rds-db:<region>:<account-id>:dbuser:<resource-id>/onyxuser"
+          }
+        ]
+      }
+      ```
+  </Step>
+
+  <Step title="Скачайте SSL-сертификат">
+    Скачайте пакет сертификатов CA RDS для безопасных подключений.
+
+        ```bash
+        wget https://s3.amazonaws.com/rds-downloads/rds-combined-ca-bundle.pem
+        ```
+
+    <Note>
+      SSL-сертификат необходим для правильной работы аутентификации IAM.
+    </Note>
+  </Step>
+
+  <Step title="Настройте Yahont для аутентификации IAM">
+    Обновите переменные окружения, чтобы использовать аутентификацию IAM.
+
+    **Для развёртываний Docker** добавьте эти переменные в файл `.env`:
+
+    ```bash
+    USE_IAM_AUTH=true
+    AWS_REGION=<your-region>
+    POSTGRES_HOST=<your-rds-endpoint>
+    POSTGRES_PORT=5432
+    POSTGRES_DB=<your-database-name>
+    POSTGRES_USER=onyxuser
+    ```
+
+    Смонтируйте SSL-сертификат в `docker-compose.yml`:
+
+    ```yaml docker-compose-prod.yml
+    services:
+      api_server:
+        volumes:
+          - ./rds-combined-ca-bundle.pem:/app/bundle.pem:ro
+    ```
+
+    **Для развёртываний Kubernetes** добавьте это в файл `values.yaml`:
+
+    ```yaml
+    configMap:
+      USE_IAM_AUTH: "true"
+      AWS_REGION: "<your-region>"
+      POSTGRES_HOST: "<your-rds-endpoint>"
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: "<your-database-name>"
+      POSTGRES_USER: "onyxuser"
+    ```
+
+    Создайте Secret для SSL-сертификата и смонтируйте его:
+
+    ```bash
+    kubectl create secret generic bundle-pem-secret --from-file=rds-combined-ca-bundle.pem
+    ```
+
+    Далее смонтируем сертификат во всех наших контейнерах в файле `values.yaml`.
+
+    **Пройдите по каждому контейнеру и замените пустые `volumes` и `volumeMounts` следующим:**
+
+    ```yaml
+    volumes:
+    - name: rds-ca
+        secret:
+          secretName: bundle-pem-secret
+
+    volumeMounts:
+      - name: rds-ca
+        mountPath: "/app/bundle.pem"
+        subPath: bundle.pem
+        readOnly: true
+    ```
+  </Step>
+
+  <Step title="Перезапустите Yahont">
+    Перезапустите ваш инстанс Yahont, чтобы применить изменения.
+
+    ```bash Docker
+    docker compose -f docker-compose.dev.yml -p onyx-stack up -d --build --force-recreate
+    ```
+
+    ```bash kubectl
+    kubectl rollout restart deployment
+    ```
+  </Step>
+</Steps>
+
+Подробнее см.
+в [документации AWS RDS по аутентификации
+IAM](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html).

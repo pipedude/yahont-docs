@@ -1,0 +1,76 @@
+---
+title: "Azure"
+description: "Развёртывание Yahont на виртуальных машинах Azure"
+icon: "microsoft"
+---
+
+import CustomDomain from "/snippets/custom-domain.mdx"
+import InstallYahont from "/snippets/install-yahont.mdx"
+import DeploymentNextSteps from "/snippets/deployment-next-steps.mdx"
+
+<Tip>
+  Чтобы развернуть Yahont в AKS с управляемыми PostgreSQL, Redis и Blob Storage,
+  используйте [модули Terraform](/deployment/local/terraform) для Azure.
+</Tip>
+
+<Steps>
+  <Step title="Создайте виртуальную машину">
+    Создайте виртуальную машину с подходящими ресурсами.
+    В этом руководстве мы используем рекомендуемый инстанс `Standard_D4s_v3`.
+
+    <Note>
+      Подробности см. в нашем [руководстве по ресурсам](/deployment/getting_started/resourcing).
+    </Note>
+
+    - Дайте инстансу понятное имя, например `onyx-prod`
+    - Выберите образ `Ubuntu Server 20.04 LTS`
+    - Выберите размер `Standard_D4s_v3`
+    - Выберите `Allow selected ports` и отметьте `HTTPS (443)` в разделе *Inbound port rules*
+    - Настройте хранилище по руководству по ресурсам
+
+    <img className="rounded-image" src="/assets/deployment/setup_guides/azure/create-vm.png" alt="Создание инстанса виртуальной машины"/>
+
+    <img className="rounded-image" src="/assets/deployment/setup_guides/azure/create-vm-2.png" alt="Параметры инстанса"/>
+
+    <img className="rounded-image" src="/assets/deployment/setup_guides/azure/create-vm-3.png" alt="Сетевые параметры"/>
+  </Step>
+
+  <Step title="Создайте инстанс">
+    Нажмите **Create** и откройте сведения об инстансе.
+
+    <Tip>
+      Сохраните **Public IP address** инстанса!
+    </Tip>
+
+    <img className="rounded-image" src="/assets/deployment/setup_guides/azure/instance-ip.png" alt="Публичный IP-адрес инстанса Azure"/>
+  </Step>
+
+  <CustomDomain />
+
+  <Step title="Установите требования Yahont">
+    Yahont требуются `git`, `docker` и `docker compose`.
+
+    Чтобы установить их в Ubuntu Server 20.04 LTS, выполните следующее:
+
+        ```bash
+        sudo apt-get update
+        sudo apt-get install -y ca-certificates curl
+
+        sudo install -m 0755 -d /etc/apt/keyrings
+        sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+        sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+        echo \
+          "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+          $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+          sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+        sudo apt-get update
+        sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin git
+        ```
+  </Step>
+
+  <InstallYahont />
+</Steps>
+
+<DeploymentNextSteps />

@@ -1,0 +1,70 @@
+---
+title: "LM Studio"
+description: "Использование LM Studio с Yahont"
+icon: "desktop"
+---
+
+import NavigateToAiModels from "/snippets/navigate-to-ai-models.mdx";
+import StandardAiModelConfigs from "/snippets/standard-ai-model-configs.mdx";
+
+## Руководство {#guide}
+
+Настройте Yahont на использование моделей, работающих в [LM Studio](https://lmstudio.ai/).
+
+В Yahont есть встроенная интеграция с LM Studio,
+которая автоматически определяет загруженные модели и их возможности (зрение, рассуждение) и длину контекста.
+
+<Steps>
+  <Step title="Настройте LM Studio и загрузите модели">
+    Скачайте LM Studio с [lmstudio.ai](https://lmstudio.ai/) и загрузите модели, которые хотите использовать.
+
+    Запустите локальный сервер LM Studio:
+
+    ```bash
+    lms server start --port 1234
+    ```
+
+    LM Studio по умолчанию работает на порту `1234`.
+
+    <Tip>
+      Для лучших результатов используйте модель с хорошим следованием инструкциям и поддержкой инструментов (например,
+      Qwen 3.5).
+    </Tip>
+
+    Если LM Studio работает на другой машине, чем Yahont, убедитесь, что сервер доступен с хоста Yahont (например,
+    `http://<lm-studio-host>:1234`).
+
+    <Info>
+      **Yahont работает в Docker на той же машине, что и LM Studio?**
+
+      По умолчанию LM Studio привязывается только к `127.0.0.1`, что недоступно изнутри контейнера Yahont.
+      Чтобы это исправить:
+
+      - На вкладке **Developer** в LM Studio включите **«Serve on Local Network»** (или задайте хост `0.0.0.0`) и перезапустите сервер.
+      - Используйте `http://host.docker.internal:1234` в качестве **базового URL API** вместо `http://localhost:1234`.
+
+      Подробнее см. [документацию LM Studio](https://lmstudio.ai/docs/developer/core/server/serve-on-network).
+    </Info>
+  </Step>
+
+  <NavigateToAiModels />
+
+  <Step title="Настройте LM Studio">
+    Выберите **LM Studio** среди доступных поставщиков.
+
+    Задайте поставщику **отображаемое имя**.
+
+    Укажите в **базовом URL API** адрес вашего сервера LM Studio (например, `http://localhost:1234`).
+
+    Если Yahont работает в Docker на той же машине, что и LM Studio,
+    используйте вместо этого `http://host.docker.internal:1234` — `localhost` внутри контейнера указывает на сам
+    контейнер, а не на ваш хост. Убедитесь, что в LM Studio включено **«Serve on Local Network»** (см.
+    информационный блок на предыдущем шаге).
+
+    Yahont автоматически подключится и определит загруженные модели.
+
+    <img className="rounded-image" src="/assets/admins/ai_models/lm_studio_config.png" alt="Настройка поставщика LM Studio"/>
+  </Step>
+
+  <StandardAiModelConfigs />
+</Steps>

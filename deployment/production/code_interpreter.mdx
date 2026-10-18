@@ -1,0 +1,270 @@
+---
+title: "Интерпретатор кода"
+description: "Запуск Code Interpreter в ограниченных кластерах и OpenShift с выделенными узлами и ограничениями ёмкости"
+icon: "code"
+---
+
+[Выполнение кода](/overview/core_features/code_interpreter) использует сервис Code Interpreter.
+Для каждого запуска сервис создаёт короткоживущий под-исполнитель, который выполняет пользовательский код.
+
+Helm-чарт Yahont устанавливает Code Interpreter как подчарт, когда `codeInterpreter.enabled` равно `true`.
+Размещайте настройки подчарта под ключом с дефисом `code-interpreter:`.
+Helm игнорирует другие ключи под `codeInterpreter:`.
+
+```yaml values.yaml
+codeInterpreter:
+  enabled: true         # Turns the subchart on or off
+
+code-interpreter:       # Settings for the subchart
+  codeInterpreter:
+    kubernetesExecutor:
+      netAdminLockdown: false
+```
+
+## Версии чартов {#chart-versions}
+
+Чарт Yahont закрепляет версию чарта Code Interpreter.
+Чарт Yahont **0.8.35** и новее закрепляет чарт Code Interpreter **0.4.8**. Более ранние чарты Yahont закрепляют 0.4.7.
+Версию подчарта нельзя изменить значениями.
+
+<Note>
+  Разделы и ключи с пометкой **0.4.8** требуют чарта Code Interpreter 0.4.8 или новее (чарт Yahont 0.8.35 или новее).
+  Со старым чартом Yahont установите чарт Code Interpreter напрямую, чтобы их использовать.
+  Code Interpreter 0.4.7 эти настройки игнорирует.
+</Note>
+
+### Прямая установка чарта Code Interpreter {#install-the-code-interpreter-chart-directly}
+
+<Steps>
+  <Step title="Установите Code Interpreter как отдельный релиз">
+    ```bash
+    helm repo add code-interpreter https://onyx-dot-app.github.io/python-sandbox/
+    helm repo update
+    helm upgrade --install code-interpreter code-interpreter/code-interpreter \
+      --namespace onyx \
+      --version 0.4.8 \
+      --values code-interpreter-values.yaml
+    ```
+
+    При прямой установке настройки задаются на верхнем уровне файла значений, без ключа `code-interpreter:`:
+
+    ```yaml code-interpreter-values.yaml
+    image:
+      tag: "0.4.8"     # The default is "latest" with pullPolicy Always
+    resources:         # The Onyx chart uses these values. The chart default memory limit is 512Mi.
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+    codeInterpreter:
+      kubernetesExecutor:
+        image: "onyxdotapp/python-executor-sci:0.4.8"
+    ```
+  </Step>
+
+  <Step title="Направьте Yahont на новый релиз">
+    ```yaml values.yaml
+    codeInterpreter:
+      enabled: false
+    configMap:
+      CODE_INTERPRETER_BASE_URL: "http://code-interpreter:8000"
+    ```
+
+    Имя Service совпадает с именем релиза. Если Code Interpreter работает в другом пространстве имён,
+    используйте `http://code-interpreter.<namespace>.svc.cluster.local:8000`.
+  </Step>
+</Steps>
+
+## Сетевая изоляция {#network-isolation}
+
+Поды-исполнители всегда получают NetworkPolicy, запрещающую весь исходящий трафик.
+По умолчанию init-контейнер также блокирует исходящий трафик с помощью iptables до запуска пользовательского кода.
+Этот init-контейнер работает от root с возможностью `NET_ADMIN`.
+
+```yaml values.yaml
+code-interpreter:
+  codeInterpreter:
+    kubernetesExecutor:
+      netAdminLockdown: false  # Remove the root NET_ADMIN init container
+```
+
+<Warning>
+  При `netAdminLockdown:
+  false` NetworkPolicy — единственное средство контроля исходящего трафика пользовательского кода.
+  Ваш CNI должен применять NetworkPolicy.
+</Warning>
+
+## Ограниченная политика безопасности подов и OpenShift (0.4.8) {#restricted-pod-security-and-openshift-048}
+
+Поды-исполнители соответствуют стандарту безопасности подов Kubernetes `restricted`,
+когда `netAdminLockdown` равно `false`.
+
+OpenShift `restricted-v2` назначает ID пользователей и групп из диапазона пространства имён и отклоняет фиксированные
+ID. Используйте режим `platform` и позвольте OpenShift назначать ID и сервисному поду:
+
+```yaml values.yaml
+code-interpreter:
+  podSecurityContext:
+    runAsUser: null
+    fsGroup: null
+  securityContext:
+    runAsUser: null
+  codeInterpreter:
+    kubernetesExecutor:
+      netAdminLockdown: false  # Required with platform mode
+      securityContext:
+        mode: platform         # The platform assigns the executor pod IDs
+        readOnlyRootFilesystem: true
+```
+
+- Чарт не отрисовывается с `mode: platform` и `netAdminLockdown: true`.
+- Режиму `platform` нужен admission-контроллер, назначающий ID пользователя. Образ исполнителя по умолчанию работает от root.
+- В других кластерах оставьте `mode: fixed`. Он использует `runAsUser`, `runAsGroup` и `fsGroup` `65532`. Измените ID, если
+  ваша политика требует других значений.
+- При `readOnlyRootFilesystem: true` (по умолчанию) пользовательский код может писать только в `/workspace` и `/tmp`.
+
+## Образы {#images}
+
+Оба образа Code Interpreter по умолчанию используют `latest`. Образ сервиса использует политику загрузки `Always`.
+У образа исполнителя нет тега, поэтому он также разрешается в `latest` с политикой загрузки `Always`,
+и каждый запуск проверяет реестр.
+
+Закрепите оба образа:
+
+```yaml values.yaml
+code-interpreter:
+  image:
+    tag: "0.4.7"  # Service image. Match the Code Interpreter chart version.
+  codeInterpreter:
+    kubernetesExecutor:
+      image: "onyxdotapp/python-executor-sci:0.4.7"
+      imagePullPolicy: IfNotPresent  # 0.4.8. Empty follows Kubernetes: IfNotPresent for a pinned tag.
+      readyTimeoutSec: 60            # 0.4.8. Time for the pod to start, including the image pull (1-600).
+```
+
+- Закрепляйте теги, существующие в Docker Hub. Yahont публикует образы не для каждой версии чарта.
+- Используйте `IfNotPresent` или `Never` на узлах, которые не могут обратиться к реестру.
+- В 0.4.8 запуск сразу завершается ошибкой при сбое загрузки образа. Он завершается ошибкой по истечении `readyTimeoutSec`, если под остаётся в `Pending`.
+
+## Выделенный пул узлов и ресурсы (0.4.8) {#dedicated-node-pool-and-resources-048}
+
+Ключи верхнего уровня `nodeSelector`, `tolerations` и `affinity` применяются только к поду сервиса.
+Используйте `kubernetesExecutor.pod`, чтобы запускать пользовательский код на отдельных узлах:
+
+```bash
+kubectl label node <node> onyx.app/pool=sandbox
+kubectl taint node <node> onyx.app/sandbox=true:NoSchedule
+```
+
+```yaml values.yaml
+code-interpreter:
+  codeInterpreter:
+    memoryLimitMb: 256  # Memory limit of each executor pod
+    kubernetesExecutor:
+      pod:
+        nodeSelector:
+          onyx.app/pool: sandbox
+        tolerations:
+          - key: onyx.app/sandbox
+            operator: Exists
+            effect: NoSchedule
+        runtimeClassName: ""  # For example "gvisor" or "kata"
+      podResources:
+        requests:
+          cpu: 100m
+          memory: 64Mi  # Capped at memoryLimitMb
+        limits:
+          cpu: "1"      # Default "5". Lower it to put more pods on each node.
+      workspaceSizeLimit: 100Mi
+      tmpSizeLimit: 64Mi
+```
+
+- `pod` также принимает `affinity`, `topologySpreadConstraints`, `priorityClassName`, `labels` и `annotations`.
+- Лимит памяти задаётся через `memoryLimitMb`. Чарт игнорирует `podResources.limits.memory`.
+- Сервис не запустится, если эти значения недопустимы.
+
+## Ёмкость и перегрузка (0.4.8) {#capacity-and-overload-048}
+
+Каждая реплика выполняет не более `capacity.maxConcurrentExecutions` запусков одновременно.
+Запрос ждёт свободного слота до `capacity.queueTimeoutSec`.
+
+```yaml values.yaml
+code-interpreter:
+  capacity:
+    maxConcurrentExecutions: 16
+    queueTimeoutSec: 30        # Keep below the Onyx client timeout (70 seconds by default)
+    retryAfterSec: 2           # Retry-After sent with 429
+    capacityRetryAfterSec: 10  # Retry-After sent with 503
+```
+
+| Статус | Значение |
+| --- | --- |
+| `429` с `Retry-After` | У этой реплики нет свободного слота после тайм-аута очереди. Повторный запрос может принять другая реплика. |
+| `503` с `Retry-After` | В кластере нет места для пода-исполнителя: ResourceQuota заполнена или под нельзя запланировать. |
+
+При размере исполнителя по умолчанию 16 запусков требуют около 4 ГиБ лимитов памяти и 1,6 CPU запросов.
+Увеличивайте `maxConcurrentExecutions`,
+только когда кластер может запланировать столько подов-исполнителей на каждую реплику.
+
+### ResourceQuota исполнителей {#executor-resourcequota}
+
+Чтобы ограничить ресурсы подов-исполнителей, включите необязательную ResourceQuota.
+Она учитывает каждый под в своём пространстве имён, поэтому используйте отдельное пространство имён для исполнителей.
+Пространство имён должно существовать.
+
+```yaml values.yaml
+code-interpreter:
+  codeInterpreter:
+    kubernetesExecutor:
+      namespace: code-execution
+  executorResourceQuota:
+    enabled: true
+    hard:
+      pods: "32"
+      requests.cpu: "4"
+      requests.memory: 4Gi
+      limits.memory: 12Gi
+```
+
+- Каждая открытая сессия удерживает один под всё время своей жизни. Учитывайте сессии в `pods`.
+- Чарт не отрисовывается с квотой в пространстве имён релиза, если вы не задали
+  `executorResourceQuota.allowReleaseNamespace: true`.
+- Если вы добавляете в `hard` ключи `ephemeral-storage`, также задайте `executorResourceQuota.limitRange.enabled: true`.
+
+### Метрики {#metrics}
+
+Сервис отдаёт метрики Prometheus по адресу `/metrics` на своём HTTP-порту. Чтобы создать ServiceMonitor,
+задайте `metrics.serviceMonitor.enabled` равным `true`. Для этого нужны CRD Prometheus Operator.
+
+Полезные метрики: `code_interpreter_executions_active`,
+`code_interpreter_executions_rejected_total` (по `status` и `reason`) и `code_interpreter_admission_wait_seconds`.
+
+## Конечные точки состояния (0.4.8) {#health-endpoints-048}
+
+| Конечная точка | Проба | Поведение |
+| --- | --- | --- |
+| `/health` | Liveness | Отвечает из памяти и не обращается к API Kubernetes. Возвращает `503` только когда фоновая проверка остановилась. |
+| `/ready` | Readiness | Проверяет, что сервис может создавать поды-исполнители. Возвращает `503`, если не может. |
+
+Занятая реплика остаётся готовой и возвращает `429`. Если вы переопределяете `readinessProbe`, используйте `/ready`.
+
+## Больше одной реплики (0.4.8) {#more-than-one-replica-048}
+
+Каждая реплика хранит загруженные файлы и результаты на своём диске.
+Yahont загружает файл и выполняет код отдельными запросами. При нескольких репликах запуск может попасть на реплику,
+где нет файла, и завершиться ошибкой.
+
+Чарт не отрисовывается с `replicaCount` больше `1`, если вы не задали `fileStorage.shared: true`.
+Задавайте его только после одного из следующих действий:
+
+- Смонтируйте том `ReadWriteMany` в `FILE_STORAGE_DIR` (по умолчанию `/tmp/code-interpreter-files`) на каждой реплике.
+- Направляйте каждого клиента на одну реплику (sticky-сессии).
+
+```yaml values.yaml
+code-interpreter:
+  replicaCount: 2
+  fileStorage:
+    shared: true  # Only with shared storage or sticky sessions
+```

@@ -1,0 +1,24 @@
+---
+title: "Отправить поисковое сообщение"
+openapi: "POST /search/send-search-message"
+---
+
+<Info>
+  **Необходимое право:** «Поиск — чтение» (`read:search`), которое включает `basic`,
+  поэтому оно есть у любого вошедшего пользователя.
+  Ограниченному [персональному токену доступа](/developers/overview#personal-access-tokens)
+  нужна область «Поиск — чтение».
+</Info>
+
+<Note>
+  Это конечная точка, на которой работает интерфейс поиска Yahont.
+  В отличие от [`POST /chat/send-chat-message`](/developers/api_reference/chat/handle_send_chat_message),
+  здесь `stream` по умолчанию равен `false`, поэтому ответ по умолчанию — агрегированный `SearchFullResponse`.
+  Формат пакетов потоковой передачи см. в разделе [Поиск через API](/developers/guides/search_api_guide).
+</Note>
+
+<Warning>
+  Требуется векторная база данных: развёртывания с заданным `DISABLE_VECTOR_DB` (Yahont Lite) отвечают `501`.
+  Каждый запрос вошедшего пользователя записывается в [историю
+  поиска](/developers/api_reference/search/get_search_history) этого пользователя.
+</Warning>

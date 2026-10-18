@@ -1,0 +1,93 @@
+---
+title: "Kubernetes"
+description: "Развёртывание Yahont с помощью Helm"
+icon: "code"
+---
+
+import DeploymentNextSteps from "/snippets/deployment-next-steps.mdx"
+
+<Tip>
+  Прежде чем начать, ознакомьтесь с нашим [руководством по ресурсам](/deployment/getting_started/resourcing).
+</Tip>
+
+## Руководство {#guide}
+
+Helm-чарт Yahont упаковывает все необходимые сервисы (API, веб, PostgreSQL, OpenSearch и т. д.) в единое развёртывание.
+По умолчанию для сервисов с состоянием (например, PostgreSQL, OpenSearch) создаются постоянные тома.
+
+<Steps>
+  <Step title="Добавьте репозиторий Helm Yahont">
+    ```bash
+    helm repo add onyx https://onyx-dot-app.github.io/onyx/
+    helm repo update
+    helm search repo onyx
+    ```
+  </Step>
+
+  <Step title="Установите Yahont">
+    Установите в отдельное пространство имён (рекомендуется):
+
+    ```bash
+    kubectl create namespace onyx
+    helm install onyx onyx/onyx -n onyx
+    ```
+
+    Это загрузит последний чарт Yahont и развернёт все зависимости.
+  </Step>
+
+  <Step title="Проверьте установку">
+    ```bash
+    helm list -n onyx
+    kubectl get pods -n onyx
+    ```
+
+    Дождитесь, пока все поды перейдут в состояние `Running`, прежде чем обращаться к Yahont.
+  </Step>
+
+  <Step title="Откройте Yahont">
+    По умолчанию чарт открывает Yahont через сервис Kubernetes.
+    Для локального тестирования можно использовать port-forward:
+
+    ```bash
+    kubectl -n onyx port-forward service/onyx-nginx 8080:80
+    ```
+
+    Затем откройте [http://localhost:8080](http://localhost:8080).
+  </Step>
+
+  <Step title="Настройте Yahont">
+    Настройте развёртывание, изменив файл `values.yaml` в каталоге `onyx/deployment/helm/charts/onyx`.
+
+    После изменения любых переменных `values.yaml` Yahont нужно перезапустить.
+
+    ```bash
+    helm upgrade onyx onyx/onyx -n onyx -f deployment/helm/charts/onyx/values.yaml
+    ```
+  </Step>
+</Steps>
+
+Расширенные параметры, такие как запуск без root и тестирование с Kind, см.
+в [README Helm-чарта](https://github.com/onyx-dot-app/onyx/tree/main/deployment/helm).
+
+## Продакшен {#production}
+
+Перед запуском Yahont в продакшене прочитайте эти руководства:
+
+- [Внешние сервисы](/deployment/production/external_services): используйте управляемые PostgreSQL, Redis, OpenSearch и
+  объектное хранилище.
+- [Высокая доступность и масштабирование](/deployment/production/high_availability): реплики, автомасштабирование,
+  пробы и долгие запросы.
+- [Усиление безопасности](/deployment/production/security): закрепление образов, учётные данные,
+  контексты безопасности и сетевые политики.
+- [Интерпретатор кода](/deployment/production/code_interpreter): ограниченные кластеры, OpenShift и ёмкость.
+
+## Включение Yahont Craft {#enabling-onyx-craft}
+
+Craft добавляет в развёртывание Helm поды-песочницы для каждого пользователя, ограниченный RBAC, NetworkPolicy,
+egress-прокси и рабочий процесс запланированных задач.
+
+<Card title="Развёртывание Craft в Kubernetes" icon="dharmachakra" href="/deployment/local/craft_kubernetes">
+  Подготовьте узлы песочниц и аутентификацию, настройте Helm, спланируйте ёмкость и проверьте среду выполнения.
+</Card>
+
+<DeploymentNextSteps />

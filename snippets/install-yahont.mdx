@@ -1,0 +1,56 @@
+<Step title="Установите и настройте Yahont">
+    Чтобы установить Yahont, нужно клонировать репозиторий и задать необходимые переменные окружения.
+
+    ```bash
+    git clone --depth 1 https://github.com/onyx-dot-app/onyx.git
+
+    cd onyx/deployment/docker_compose
+    cp env.prod.template .env
+    cp env.nginx.template .env.nginx
+    ```
+
+    Заполните файлы `.env` и `.env.nginx`.
+
+    ```bash .env expandable
+    WEB_DOMAIN=<YOUR_DOMAIN>  # Something like "yahont.ai"
+
+    # If your email is something like "<PERSON>@example.com", then this should be "yahont.ai"
+    # This prevents people outside your company from creating an account
+    VALID_EMAIL_DOMAINS=<YOUR_COMPANIES_EMAIL_DOMAIN>
+    ```
+
+    Вход по электронной почте и паролю работает из коробки, а SSO (Google / OIDC / SAML)
+    настраивается позже в панели администратора. Подробнее см.
+    в наших [руководствах по аутентификации](/deployment/authentication/basic).
+
+    ```bash .env.nginx
+    DOMAIN=<YOUR_DOMAIN>  # Something like "yahont.ai"
+    ```
+</Step>
+
+<Step title="Запустите Yahont">
+    Скрипт `init-letsencrypt.sh` получит SSL-сертификат от letsencrypt и запустит стек Yahont.
+
+    ```bash
+    ./init-letsencrypt.sh
+    ```
+
+    <Warning>
+      Вы получите ошибку, если процесс letsencrypt завершится неудачей более 5 раз.
+      Придётся подождать 72 часа или запросить новый домен.
+    </Warning>
+
+    Если вы пропускаете настройку HTTPS, запустите Yahont вручную:
+
+    ```bash
+    docker compose -f docker-compose.dev.yml -p onyx-stack up -d --build --force-recreate
+    ```
+
+    <Note>
+      Дайте Yahont несколько минут на запуск.
+
+      Прогресс можно отслеживать с помощью `docker logs onyx-stack-api_server-1 -f`.
+    </Note>
+
+    Вы можете открыть Yahont по публичному IPv4 инстанса или по домену, который вы настроили ранее!
+</Step>

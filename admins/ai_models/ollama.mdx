@@ -1,0 +1,39 @@
+---
+title: "Ollama"
+description: "Использование Ollama с Yahont"
+icon: "robot"
+---
+
+import NavigateToAiModels from "/snippets/navigate-to-ai-models.mdx";
+import StandardAiModelConfigs from "/snippets/standard-ai-model-configs.mdx";
+
+## Руководство {#guide}
+
+Настройте Yahont на использование моделей, работающих в [Ollama](https://ollama.com/).
+
+<Steps>
+  <Step title="Настройте Ollama и разверните модели">
+    В [репозитории Ollama на GitHub](https://github.com/ollama/ollama?tab=readme-ov-file#ollama) описано,
+    как скачивать и развёртывать модели в Ollama.
+
+    При самостоятельном размещении Ollama по умолчанию работает на порту `11434`.
+
+    Также можно настроить Yahont на использование [управляемого облачного сервиса Ollama](https://ollama.com/cloud).
+  </Step>
+
+  <NavigateToAiModels />
+
+  <Step title="Настройте Ollama">
+    Выберите **Ollama** среди доступных поставщиков.
+
+    Задайте поставщику **отображаемое имя**.
+
+    Если вы используете Ollama Cloud, введите свой **API-ключ** Ollama Cloud.
+
+    Нажмите кнопку **Fetch Available Models**, чтобы увидеть модели, доступные в вашем инстансе Ollama.
+
+    <img className="rounded-image" src="/assets/admins/ai_models/ollama_config.png" alt="Настройка поставщика Ollama"/>
+  </Step>
+
+  <StandardAiModelConfigs />
+</Steps>

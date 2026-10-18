@@ -1,0 +1,171 @@
+---
+title: "Бот для Discord"
+description: "Настройка вашего бота для Discord"
+icon: "discord"
+---
+
+## Обзор {#overview}
+
+Доступ к вашему инстансу Yahont можно получить через бота для Discord.
+
+<Note>
+  Нужно создать собственное приложение Discord в Developer Portal.
+</Note>
+
+## Конфигурация {#configuration}
+
+### Бот для Discord с самостоятельным размещением {#self-hosted-discord-bot}
+
+Если вы хотите развернуть собственного бота для Discord со своим инстансом Yahont с самостоятельным размещением,
+вам нужно создать собственное приложение Discord.
+
+<Info>
+  В Developer Portal вы увидите упоминания «Guilds». Так в Discord внутренне называются серверы.
+</Info>
+
+<Steps>
+  <Step title="Создайте новое приложение Discord">
+    Откройте [Discord Developer Portal](https://discord.com/developers/applications) и нажмите **New Application**.
+
+    Задайте приложению имя и нажмите **Create**.
+
+    <img className="rounded-image" src="/assets/admins/discord_bot/new_discord_app.png" alt="Создание нового приложения Discord"/>
+  </Step>
+
+  <Step title="Настройте разрешения и параметры установки">
+    Откройте вкладку **Installation**.
+
+    Снимите флажок **User Install**. Приложение Discord нельзя устанавливать для личного использования.
+    Его нужно устанавливать только на серверы.
+
+    Добавьте следующие области:
+
+    ```
+    - bot
+    - applications.commands
+    ```
+
+    Добавьте следующие разрешения:
+
+    ```
+    - View channels
+    - Send messages
+    - Send messages in threads
+    - Create public threads
+    - Create private threads
+    - Read message history
+    - Add reactions
+    ```
+
+    <img className="rounded-image" src="/assets/admins/discord_bot/installation_config.png" alt="Конфигурация установки Discord"/>
+  </Step>
+
+  <Step title="Включите Privileged Gateway Intents">
+    На вкладке **Bot** прокрутите до раздела **Privileged Gateway Intents** и включите все 3 переключателя:
+    - Presence Intent
+    - Server Members Intent
+    - Message Content Intent
+
+    <img className="rounded-image" src="/assets/admins/discord_bot/privileged_gateway_intents.png" alt="Privileged gateway intents Discord"/>
+  </Step>
+
+  <Step title="Установите приложение на ваш сервер Discord">
+    Используйте **Install Link** на вкладке **Installation**, чтобы установить приложение на ваш сервер Discord.
+  </Step>
+
+  <Step title="Разрешите приложению доступ к приватному текстовому каналу">
+    Откройте настройки канала и перейдите на вкладку «Разрешения».
+
+    Добавьте своё приложение в список «Разрешённые пользователи».
+
+    <img className="rounded-image" src="/assets/admins/discord_bot/discord_private_channel_config.png" alt="Доступ YahontBot к приватному текстовому каналу"/>
+  </Step>
+
+  <Step title="Получите токен бота">
+    В Developer Portal откройте вкладку **Bot** и найдите раздел **Token**.
+
+    Нажмите **Reset Token** и скопируйте токен бота.
+
+    <img className="rounded-image" src="/assets/admins/discord_bot/bot_token_config.png" alt="Настройка токена бота Discord"/>
+  </Step>
+
+  <Step title="Настройте приложение в Yahont">
+    Откройте панель администратора Yahont > Боты Discord.
+
+    Вставьте токен бота в поле **Токен бота** и нажмите **Создать!**
+
+    <img className="rounded-image" src="/assets/admins/discord_bot/configure_discord_bot_token.png" alt="Токен бота Discord"/>
+  </Step>
+
+  <Step title="Создайте ключ регистрации в Yahont">
+    Нажмите кнопку **Добавить сервер** и скопируйте ключ регистрации.
+
+    <Note>
+      Ключ регистрации показывается только один раз. Если вы его потеряете,
+      удалите конфигурацию сервера и создайте новую.
+
+      Ключ становится недействительным сразу после использования и не даёт никакого другого доступа к вашему инстансу
+      Yahont.
+    </Note>
+  </Step>
+
+  <Step title="Зарегистрируйте сервер в Yahont">
+    Отправьте ключ регистрации в приватном канале, к которому вы разрешили доступ своему приложению.
+
+    Ваш бот Yahont должен ответить сообщением, подтверждающим регистрацию сервера.
+
+    <img className="rounded-image" src="/assets/admins/discord_bot/register_server.png" alt="YahontBot зарегистрирован в Yahont"/>
+
+    В Yahont вы должны увидеть статус сервера **Зарегистрирован**.
+
+    <img className="rounded-image" src="/assets/admins/discord_bot/configured_discord_server.png" alt="YahontBot зарегистрирован в Yahont"/>
+  </Step>
+
+  <Step title="Настройте поведение в каналах">
+    Нажмите значок карандаша рядом с названием сервера, чтобы настроить поведение бота.
+
+    <Tip>
+      По умолчанию бот не отвечает ни в каких каналах. Нужно выбрать каналы, в которых бот должен отвечать.
+
+      Настоятельно рекомендуем настроить для бота **пользовательского агента** с определённым доступом к данным.
+      Иначе он может отвечать на основе приватно проиндексированных данных.
+    </Tip>
+
+    Можно настроить:
+    - Агента по умолчанию, который формирует ответы бота
+    - Переопределения агента для отдельных каналов
+    - Должен ли бот отвечать на все сообщения или только на сообщения с упоминанием `@OnyxBot`
+    - Отвечает ли бот в ответах или в ветках
+
+    <img className="rounded-image" src="/assets/admins/discord_bot/discord_channel_configs.png" alt="Настройка поведения в каналах"/>
+  </Step>
+</Steps>
+
+## FAQ {#faq}
+
+### Почему я не вижу все свои каналы в Yahont? {#why-cant-i-see-all-of-my-channels-in-onyx}
+
+Если вы добавили или удалили каналы на сервере Discord, их нужно синхронизировать с Yahont.
+
+Выполните `!sync-channels` в любом текстовом канале, к которому у YahontBot есть доступ.
+
+### `!` уже занят другой командой! {#is-already-taken-by-another-command}
+
+`!sync-channels` — пока единственная команда, поддерживаемая YahontBot.
+
+При самостоятельном размещении можно изменить префикс команд, задав переменную окружения `DISCORD_BOT_INVOKE_CHAR`.
+
+Если вы используете официального YahontBot, к сожалению, мы не можем изменить префикс.
+Однако вы всё равно можете выполнить команду, создав приватный канал, к которому есть доступ только у YahontBot.
+
+### Мой бот для Discord подключён, но не отвечает ни на какие сообщения {#my-discord-bot-is-connected-but-not-responding-to-any-messages}
+
+Если вы наблюдаете такое поведение, возможно, вы столкнулись со следующей ошибкой (в фоновом контейнере):
+
+```
+api_client.py  182: Failed to connect to API: Cannot connect to host 127.0.0.1:8080
+```
+
+Чтобы это исправить, убедитесь, что у вас последние файлы docker-compose.yml,
+выполнив `git pull` в вашем репозитории Yahont. Убедитесь,
+что `API_SERVER_PROTOCOL` и `API_SERVER_HOST` есть в вашем compose-файле.

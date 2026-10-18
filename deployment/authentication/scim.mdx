@@ -1,0 +1,148 @@
+---
+title: "SCIM"
+description: "Автоматическое создание пользователей и групп с помощью SCIM 2.0"
+icon: "arrows-rotate"
+---
+
+import EnterpriseEditionInfo from "/snippets/enterprise-edition-info.mdx";
+
+<EnterpriseEditionInfo />
+
+Настройте в Yahont SCIM 2.0,
+чтобы автоматически создавать и отключать пользователей и группы из вашего поставщика удостоверений.
+
+Подходит для поставщиков SCIM 2.0, например **Okta** и **Microsoft Entra ID** (Azure AD).
+Если вам нужна поддержка конкретного поставщика, напишите в наш [Telegram](https://t.me/yahont_ai),
+и мы добавим его в план развития.
+
+<Note>
+  SCIM отвечает за **подготовку учётных записей** — синхронизацию пользователей и групп в Yahont.
+  Для входа пользователей всё равно нужен отдельный метод аутентификации (например,
+  [OIDC](/deployment/authentication/oidc) или [SAML](/deployment/authentication/saml)).
+</Note>
+
+## Что делает SCIM {#what-scim-does}
+
+- **Создание пользователей** — автоматически создаёт аккаунты Yahont, когда пользователи назначаются в вашем IdP
+- **Отключение пользователей** — деактивирует аккаунты Yahont,
+  когда пользователи снимаются с назначения или приостанавливаются
+- **Синхронизация групп** — передаёт изменения состава групп из вашего IdP в Yahont
+- **Обновление профилей** — поддерживает синхронность атрибутов пользователя (имя, адрес электронной почты)
+
+## Создание токена SCIM {#generate-a-scim-token}
+
+Перед настройкой поставщика удостоверений создайте в Yahont bearer-токен SCIM.
+
+<Steps>
+  <Step title="Откройте настройки SCIM">
+    В вашем инстансе Yahont откройте **Панель администратора** → **Разрешения** → **SCIM**.
+  </Step>
+
+  <Step title="Создайте токен">
+    Нажмите **Generate SCIM Token**. Будет создан новый bearer-токен для аутентификации вашего IdP.
+
+    <Warning>
+      Токен показывается **только один раз**. Скопируйте или скачайте его сразу.
+      Создание нового токена отзывает предыдущий.
+    </Warning>
+  </Step>
+</Steps>
+
+Эти два значения понадобятся при настройке вашего поставщика удостоверений:
+
+| Поле | Значение |
+|------|----------|
+| **SCIM Base URL** | `https://YOUR_YAHONT_DOMAIN/scim/v2` |
+| **Bearer Token** | Токен, созданный выше |
+
+## Настройка поставщика удостоверений {#configure-your-identity-provider}
+
+Используйте **SCIM Base URL** и **Bearer Token** с предыдущего шага при настройке подготовки учётных записей в вашем
+IdP.
+
+<CardGroup cols={2}>
+  <div className="icon-dark-invert">
+
+  <Card title="Okta" icon="/assets/icons/okta.svg" href="https://help.okta.com/en-us/content/topics/apps/apps_app_integration_wizard_scim.htm">
+    Следуйте руководству Okta, чтобы добавить подготовку учётных записей SCIM в приложение
+  </Card>
+  </div>
+  <Card title="Microsoft Entra ID" icon="microsoft" href="https://learn.microsoft.com/en-us/entra/identity/app-provisioning/use-scim-to-provision-users-and-groups#getting-started">
+    Следуйте руководству Microsoft, чтобы настроить автоматическую подготовку учётных записей
+  </Card>
+</CardGroup>
+
+При запросе параметров подключения используйте:
+
+| Поле IdP | Значение |
+|----------|----------|
+| **SCIM Base URL** / **Tenant URL** | `https://YOUR_YAHONT_DOMAIN/scim/v2` |
+| **Authentication** | Bearer-токен (HTTP-заголовок) |
+
+## Проверка подключения {#verifying-the-connection}
+
+После настройки подготовки учётных записей страница **SCIM** в панели администратора Yahont покажет статус
+**Connected**, как только IdP выполнит первый запрос. Также можно проверить страницу **Пользователи и группы**,
+чтобы убедиться, что созданные пользователи и группы отображаются правильно.
+
+## Поддерживаемые атрибуты {#supported-attributes}
+
+Конечные точки обнаружения SCIM **не требуют аутентификации** — токен не нужен. Их можно запросить напрямую,
+чтобы точно узнать, что поддерживает Yahont, не гадая.
+
+```bash
+curl -s https://YOUR_YAHONT_DOMAIN/scim/v2/Schemas -H "Accept: application/scim+json" | jq .
+curl -s https://YOUR_YAHONT_DOMAIN/scim/v2/ServiceProviderConfig -H "Accept: application/scim+json" | jq .
+curl -s https://YOUR_YAHONT_DOMAIN/scim/v2/ResourceTypes -H "Accept: application/scim+json" | jq .
+```
+
+Таблицы ниже отражают текущие ответы.
+
+### Атрибуты пользователя (`/scim/v2/Schemas`) {#user-attributes-scimv2schemas}
+
+| Атрибут | Тип | Обязателен | Примечания |
+|---------|-----|------------|------------|
+| `userName` | string | Да | Уникальный идентификатор — обычно адрес электронной почты пользователя |
+| `name.givenName` | string | Нет | Имя |
+| `name.familyName` | string | Нет | Фамилия |
+| `name.formatted` | string | Нет | Полное имя, включая отчества и титулы |
+| `emails[].value` | string | Нет | Адрес электронной почты |
+| `emails[].type` | string | Нет | Метка, например `work` |
+| `emails[].primary` | boolean | Нет | Является ли это основным адресом электронной почты |
+| `active` | boolean | Нет | Активен ли аккаунт |
+| `externalId` | string | Нет | Идентификатор из IdP (с учётом регистра) |
+
+**Расширение Enterprise User** (`urn:ietf:params:scim:schemas:extension:enterprise:2.0:User`):
+
+| Атрибут | Тип | Обязателен | Примечания |
+|---------|-----|------------|------------|
+| `department` | string | Нет | Подразделение |
+| `manager.value` | string | Нет | ID пользователя-руководителя |
+
+### Атрибуты группы (`/scim/v2/Schemas`) {#group-attributes-scimv2schemas}
+
+| Атрибут | Тип | Обязателен | Примечания |
+|---------|-----|------------|------------|
+| `displayName` | string | Да | Понятное название группы |
+| `members[].value` | string | Нет | ID пользователя — участника группы |
+| `members[].display` | string | Нет | Отображаемое имя участника (только чтение) |
+| `externalId` | string | Нет | Идентификатор из IdP (с учётом регистра) |
+
+### Поддерживаемые операции (`/scim/v2/ServiceProviderConfig`) {#supported-operations-scimv2serviceproviderconfig}
+
+| Возможность | Поддерживается |
+|-------------|----------------|
+| PATCH | Да |
+| Массовые операции | Нет |
+| Фильтрация | Да (не более 100 результатов) |
+| Смена пароля | Нет |
+| Сортировка | Нет |
+| ETag | Нет |
+| Аутентификация | Bearer-токен |
+
+### Типы ресурсов (`/scim/v2/ResourceTypes`) {#resource-types-scimv2resourcetypes}
+
+| Ресурс | Конечная точка | Схема |
+|--------|----------------|-------|
+| User | `/scim/v2/Users` | `urn:ietf:params:scim:schemas:core:2.0:User` + расширение Enterprise (необязательно) |
+| Group | `/scim/v2/Groups` | `urn:ietf:params:scim:schemas:core:2.0:Group` |

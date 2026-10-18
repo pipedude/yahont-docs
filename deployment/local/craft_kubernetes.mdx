@@ -1,0 +1,225 @@
+---
+title: "Kubernetes"
+description: "Развёртывание песочниц Craft с помощью Helm-чарта Yahont"
+icon: "dharmachakra"
+---
+
+Используйте Helm-чарт Yahont, чтобы развернуть Craft с песочницами Kubernetes. Чарт создаёт пространство имён песочниц,
+PodTemplate, RBAC, egress-прокси, NetworkPolicy и рабочий процесс запланированных задач, используемые Craft.
+
+## Требования {#requirements}
+
+- Kubernetes 1.33 или новее
+- Полное развёртывание Yahont с Helm с включённой векторной базой данных
+- Узлы с достаточным CPU, памятью и эфемерным хранилищем для активных песочниц
+- URL, по которому поды-песочницы могут обратиться к API Yahont
+
+Чарт завершает установку или обновление ошибкой, когда Craft включён в более старой версии Kubernetes,
+когда бэкенд песочниц не `kubernetes`,
+когда `ONYX_SERVER_URL` пуст или когда не настроена аутентификация push в песочницы.
+
+## Подготовка узлов песочниц {#prepare-sandbox-nodes}
+
+По умолчанию поды-песочницы выбирают узлы с такой меткой:
+
+```text
+onyx.app/workload=sandbox
+```
+
+Назначьте метку каждому узлу, на котором могут работать песочницы:
+
+```bash
+kubectl label node <node-name> onyx.app/workload=sandbox
+```
+
+Токен по умолчанию для песочницы также поддерживает узлы, выделенные с таким taint:
+
+```bash
+kubectl taint node <node-name> workload=sandbox:NoSchedule
+```
+
+Taint необязателен. Метка узла обязательна, если вы не замените `sandboxPod.nodeSelector` селектором,
+подходящим для вашего кластера.
+
+## Создание Secret для push в песочницу {#create-the-sandbox-push-secret}
+
+Craft использует ключ Ed25519 для аутентификации передачи файлов и истории в поды-песочницы.
+Создайте ключ и сохраните его в пространстве имён Yahont:
+
+```bash
+SANDBOX_PUSH_PRIVATE_KEY="$(python3 -c 'import base64; from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey; from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat; key = Ed25519PrivateKey.generate(); print(base64.b64encode(key.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())).decode())')"
+
+kubectl create namespace onyx --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n onyx create secret generic onyx-sandbox-push-secret \
+  --from-literal=private_key="$SANDBOX_PUSH_PRIVATE_KEY"
+unset SANDBOX_PUSH_PRIVATE_KEY
+```
+
+Держите этот Secret неизменным при обновлениях. Замена ключа, пока песочницы работают,
+прерывает аутентифицированную передачу, пока затронутые компоненты и песочницы не будут созданы заново.
+
+## Настройка Helm {#configure-helm}
+
+Добавьте следующие настройки в файл значений, используемый вашим существующим развёртыванием Yahont.
+Если `configMap` или `auth` уже есть, объедините эти записи с существующими ключами, а не добавляйте второй блок.
+
+```yaml values.yaml
+configMap:
+  ENABLE_CRAFT: "true"
+  SANDBOX_BACKEND: "kubernetes"
+  ONYX_SERVER_URL: "https://yahont.example.com/api"
+
+auth:
+  sandboxPushSecret:
+    enabled: true
+    existingSecret: "onyx-sandbox-push-secret"
+```
+
+`ONYX_SERVER_URL` — полный базовый URL API, включая префикс пути.
+Это может быть публичный URL Yahont через ваш прокси (`https://yahont.example.com/api`)
+или внутрикластерный Service API (`http://<release>-api-service.<namespace>.svc.cluster.local:8080`, без префикса).
+Используйте схему и имя хоста, которые разрешаются из прокси песочниц и маршрутизируются к API Yahont.
+Публичный URL без префикса `/api` приводит к ошибке при подготовке песочницы с исправленным значением.
+
+Установите или обновите Yahont с полными значениями вашего развёртывания:
+
+```bash
+helm upgrade --install onyx onyx/onyx \
+  --namespace onyx \
+  --create-namespace \
+  --values onyx-values.yaml
+```
+
+Замените `onyx-values.yaml` путём к файлу значений, используемому вашим развёртыванием.
+
+Либо сохраните только настройки Craft в отдельном оверлее `craft-values.yaml`.
+Передайте сначала значения существующего развёртывания, а затем оверлей Craft, чтобы Helm их объединил:
+
+```bash
+helm upgrade --install onyx onyx/onyx \
+  --namespace onyx \
+  --create-namespace \
+  --values onyx-values.yaml \
+  --values craft-values.yaml
+```
+
+## Планирование ёмкости песочниц {#plan-sandbox-capacity}
+
+Каждый активный пользователь получает под-песочницу. У основного контейнера песочницы такие значения по умолчанию:
+
+| Ресурс | Запрос | Лимит |
+| --- | --- | --- |
+| CPU | `1000m` | `2000m` |
+| Память | `2Gi` | `10Gi` |
+| Эфемерное хранилище | `5Gi` | `20Gi` |
+
+Под также включает контейнеры инициализации и sidecar для настройки сети, передачи файлов, снимков и восстановления.
+Чтобы изменить ресурсы основного контейнера,
+объедините эти записи `configMap` со значениями вашего развёртывания или оверлеем Craft:
+
+```yaml
+configMap:
+  SANDBOX_POD_CPU_REQUEST: "1000m"
+  SANDBOX_POD_CPU_LIMIT: "2000m"
+  SANDBOX_POD_MEMORY_REQUEST: "2Gi"
+  SANDBOX_POD_MEMORY_LIMIT: "10Gi"
+  SANDBOX_POD_EPHEMERAL_STORAGE_REQUEST: "5Gi"
+  SANDBOX_POD_EPHEMERAL_STORAGE_LIMIT: "20Gi"
+```
+
+Используйте `sandboxPod.nodeSelector`, `sandboxPod.tolerations` и `sandboxPod.affinity`, чтобы управлять размещением.
+У прокси и рабочего процесса запланированных задач отдельные настройки ресурсов в `sandboxProxy.resources` и
+`celery_worker_scheduled_tasks.resources`.
+
+### Предварительная загрузка образа песочницы {#pre-pull-the-sandbox-image}
+
+Когда Craft включён, чарт запускает DaemonSet (`sandboxImagePrepull`),
+который заранее загружает образ песочницы на каждый узел песочниц,
+чтобы первая песочница на узле не ждала загрузки образа.
+Он включён по умолчанию и занимает около 3,3 ГБ диска на узел песочниц.
+
+```yaml
+sandboxImagePrepull:
+  enabled: true
+  priorityClassName: ""
+  updateMaxUnavailable: "25%"
+```
+
+Задайте `enabled: false` на узлах без такого запаса диска.
+Закрепите `global.version` на неизменяемом теге при предварительной загрузке; изменяемый тег, такой как `latest`,
+остаётся на том дайджесте, который узел загрузил первым.
+
+## Проверка развёртывания {#verify-the-deployment}
+
+Убедитесь, что существуют прокси, шаблон песочницы и рабочий процесс запланированных задач:
+
+```bash
+kubectl -n onyx get deployment -l app.kubernetes.io/component=sandbox-proxy
+kubectl -n onyx-sandboxes get podtemplate sandbox-pod
+kubectl -n onyx get deployment -l app=celery-worker-scheduled-tasks
+```
+
+После настройки модели и доступа пользователей отправьте запрос в Craft. Должен появиться под-песочница:
+
+```bash
+kubectl -n onyx-sandboxes get pods -l app.kubernetes.io/component=sandbox
+```
+
+## Сетевая конфигурация {#network-configuration}
+
+Поды-песочницы могут отправлять трафик только в DNS и прокси песочниц. Прокси обрабатывает внешние запросы,
+политики приложений и подстановку учётных данных.
+
+В большинстве кластеров достаточно значений чарта по умолчанию. Две схемы кластеров требуют дополнительных значений:
+
+| Схема кластера | Конфигурация |
+| --- | --- |
+| NodeLocal DNS или другой обработчик DNS вне подов | Добавьте его CIDR в `craft.dnsExtraCIDRs`. |
+| Внешний или немаркированный прокси песочниц | Добавьте CIDR прокси в `craft.proxyExtraCIDRs`. |
+| Dual-stack-сеть | Задайте `sandboxProxy.egressAllowIPv6: true`. |
+
+<Warning>
+  Оставьте включёнными NetworkPolicy исходящего трафика песочниц.
+  Они ограничивают поды-песочницы прокси и DNS и блокируют доступ к link-local метаданным облака через путь прокси.
+</Warning>
+
+## Устранение неполадок {#troubleshooting}
+
+<AccordionGroup>
+  <Accordion title="Helm отклоняет конфигурацию Craft">
+    Сначала прочитайте ошибку отрисовки. Убедитесь в Kubernetes 1.33 или новее, `SANDBOX_BACKEND: "kubernetes"`,
+    непустом `ONYX_SERVER_URL` и `auth.sandboxPushSecret.enabled: true` с заполненным Secret.
+  </Accordion>
+
+  <Accordion title="Поды-песочницы остаются в Pending">
+    Выполните `kubectl -n onyx-sandboxes describe pod <pod-name>`. Убедитесь,
+    что хотя бы один узел соответствует `sandboxPod.nodeSelector`,
+    принимает настроенные taint и tolerations и имеет достаточно CPU, памяти и эфемерного хранилища.
+  </Accordion>
+
+  <Accordion title="Песочница завершается ошибкой при инициализации">
+    Изучите журналы контейнера `sandbox-init` и поды прокси.
+    DNS должен разрешать прокси до установки межсетевого экрана песочницы.
+    Кластерам с NodeLocal DNS обычно нужен CIDR его обработчика в `craft.dnsExtraCIDRs`.
+  </Accordion>
+
+  <Accordion title="Craft не может обратиться к API Yahont">
+    Проверьте `ONYX_SERVER_URL` (включая префикс `/api` в публичных URL), DNS, доверие TLS и маршрутизацию от прокси.
+    Не указывайте имя Service из другого кластера или адрес, который прокси не может разрешить.
+  </Accordion>
+
+  <Accordion title="Прокси песочниц не Ready">
+    Выполните `kubectl -n onyx logs -l app.kubernetes.io/component=sandbox-proxy --tail=200` и проверьте его доступ к
+    PostgreSQL, Redis, API Yahont и внешним адресам. В dual-stack-кластерах включите `sandboxProxy.egressAllowIPv6`.
+  </Accordion>
+</AccordionGroup>
+
+<CardGroup cols={2}>
+  <Card title="Обзор развёртывания Craft" icon="hammer" href="/deployment/local/craft">
+    Сравните варианты Kubernetes и Docker Compose.
+  </Card>
+
+  <Card title="Управление Craft" icon="sliders" href="/admins/managing_features/craft">
+    Настройте модели и доступ пользователей после развёртывания.
+  </Card>
+</CardGroup>

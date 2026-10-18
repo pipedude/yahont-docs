@@ -1,0 +1,149 @@
+---
+title: "Веб-поиск"
+description: "Включите веб-поиск для ваших ИИ-агентов в Yahont"
+icon: "globe"
+---
+
+Действие «Веб-поиск» позволяет агентам обращаться в интернет и получать информацию из веб-источников в реальном времени.
+
+## Веб-поиск в Yahont {#web-search-in-onyx}
+
+### В Yahont Cloud {#on-onyx-cloud}
+
+В Yahont Cloud по умолчанию подключён только краулер Onyx Web Crawler. Поставщика веб-поиска по умолчанию нет:
+ему нужен ваш ключ API. Подключите поставщика по шагам в разделе [Самостоятельное размещение](#self-hosted) ниже,
+шаги те же. Exa и Google PSE в облаке недоступны.
+
+### Самостоятельное размещение {#self-hosted}
+
+<Steps>
+  <Step title="Откройте панель веб-поиска">
+    Нажмите значок профиля пользователя,
+    выберите «Панель администратора» и откройте вкладку «Веб-поиск» на боковой панели.
+
+    <img className="rounded-image" src="/assets/admins/actions/web_search/web_search.png" alt="Панель веб-поиска в панели администратора Yahont"/>
+  </Step>
+
+  <Step title="Настройте поставщиков веб-поиска">
+    Сейчас поддерживаются следующие поставщики веб-поиска: Srezai, Exa, Serper, Brave, Google PSE, SearXNG,
+    Tavily и Firecrawl. Чтобы настроить любого из них, выполните шаги ниже.
+
+    <img className="rounded-image" src="/assets/admins/actions/web_search/search_engines.png" alt="Поставщики поисковых систем"/>
+
+    <Tabs tabs={["Srezai", "Exa", "Serper", "Brave", "Google PSE", "SearXNG", "Tavily", "Firecrawl"]}>
+      <Tab title="Srezai">
+        Создайте API-ключ Srezai на [панели Srezai](https://srezai.ru/dashboard).
+
+        В Yahont нажмите **Подключить** и вставьте API-ключ в поле **API-ключ**.
+
+        Srezai работает в России без VPN.
+      </Tab>
+
+      <Tab title="Exa">
+        <Note>
+          В Yahont Cloud этот поставщик недоступен: Exa не работает из России.
+        </Note>
+
+        Создайте API-ключ Exa на [панели Exa](https://dashboard.exa.ai/api-keys).
+
+        В Yahont нажмите **Подключить** и вставьте API-ключ в поле **API-ключ**.
+      </Tab>
+
+      <Tab title="Serper">
+        Создайте API-ключ Serper на [панели Serper](https://serper.dev/api-key).
+
+        В Yahont нажмите **Подключить** и вставьте API-ключ в поле **API-ключ**.
+      </Tab>
+
+      <Tab title="Brave">
+        Создайте API-ключ Brave на [панели
+        Brave](https://api-dashboard.search.brave.com/app/documentation/web-search/get-started).
+
+        В Yahont нажмите **Подключить** и вставьте API-ключ в поле **API-ключ**.
+      </Tab>
+
+      <Tab title="Google PSE">
+        <Note>
+          В Yahont Cloud этот поставщик недоступен: Google закрыл API для новых клиентов.
+        </Note>
+
+        Создайте API-ключ Google PSE на [панели Google
+        PSE](https://programmablesearchengine.google.com/controlpanel/all).
+
+        В Yahont нажмите **Подключить**, вставьте API-ключ в поле **API-ключ**,
+        а идентификатор поисковой системы — в поле **ID поисковой системы**.
+      </Tab>
+
+      <Tab title="SearXNG">
+        Ключ API не нужен.
+
+        В Yahont нажмите **Подключить** и в поле **Базовый URL SearXNG** укажите адрес вашего [инстанса
+        SearXNG](https://docs.searxng.org/admin/installation.html).
+      </Tab>
+
+      <Tab title="Tavily">
+        Создайте API-ключ Tavily на [панели Tavily](https://app.tavily.com/home).
+
+        В Yahont нажмите **Подключить** и вставьте API-ключ в поле **API-ключ**.
+      </Tab>
+
+      <Tab title="Firecrawl">
+        Создайте API-ключ Firecrawl на [панели Firecrawl](https://www.firecrawl.dev/app/api-keys).
+
+        В Yahont нажмите **Подключить**,
+        вставьте API-ключ в поле **API-ключ** и укажите адрес в поле **Базовый URL API**. Оба поля обязательны.
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Настройте веб-краулер">
+    Сейчас поддерживаются следующие веб-краулеры: Onyx Web Crawler, Srezai, Firecrawl, Exa и Tavily. Чтобы настроить их,
+    выполните шаги ниже.
+
+    <img className="rounded-image" src="/assets/admins/actions/web_search/crawlers.png" alt="Поставщики краулеров"/>
+
+    <Tabs tabs={["Onyx Web Crawler", "Srezai", "Firecrawl", "Exa", "Tavily"]}>
+      <Tab title="Onyx Web Crawler">
+        **(Рекомендуется)** Он уже настроен и готов к использованию, дополнительная настройка не нужна.
+
+        Если вы отключите подключённый краулер, Yahont вернётся к встроенному.
+      </Tab>
+
+      <Tab title="Srezai">
+        Создайте API-ключ Srezai на [панели Srezai](https://srezai.ru/dashboard).
+
+        В Yahont нажмите **Подключить** и вставьте API-ключ в поле **API-ключ**.
+      </Tab>
+
+      <Tab title="Firecrawl">
+        Создайте API-ключ Firecrawl на [панели Firecrawl](https://www.firecrawl.dev/app/api-keys).
+
+        В Yahont нажмите **Подключить**,
+        вставьте API-ключ в поле **API-ключ** и укажите адрес в поле **Базовый URL API**.
+      </Tab>
+
+      <Tab title="Exa">
+        Создайте API-ключ Exa на [панели Exa](https://dashboard.exa.ai/api-keys).
+
+        В Yahont нажмите **Подключить** и вставьте API-ключ в поле **API-ключ**.
+      </Tab>
+
+      <Tab title="Tavily">
+        Создайте API-ключ Tavily на [панели Tavily](https://app.tavily.com/home).
+
+        В Yahont нажмите **Подключить** и вставьте API-ключ в поле **API-ключ**.
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Выберите поставщика по умолчанию">
+    Обязательно нажмите **Сделать по умолчанию** для нужного поставщика,
+    если для поисковой системы и веб-краулера настроено несколько поставщиков. Это можно изменить в любой момент.
+
+    <img className="rounded-image" src="/assets/admins/actions/web_search/set_default_provider.png" alt="Выбор поставщика по умолчанию"/>
+  </Step>
+</Steps>
+
+<Note>
+  Убедитесь, что у вашего агента включено действие «Веб-поиск»!
+</Note>

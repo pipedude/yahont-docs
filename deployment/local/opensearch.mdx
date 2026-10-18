@@ -1,0 +1,89 @@
+---
+title: "OpenSearch"
+description: "Настройка Yahont с OpenSearch"
+icon: "magnifying-glass"
+---
+
+## Обзор {#overview}
+
+OpenSearch — индекс документов, который Yahont использует для поиска.
+
+В **Helm**-чарте Yahont есть раздел, который определяет желаемую конфигурацию инстанса OpenSearch, и другой раздел,
+который определяет аутентификацию для этого инстанса. Если они включены (по умолчанию),
+то при запуске вашего инстанса Yahont с помощью Helm Helm также запустит инстанс OpenSearch (состоящий из одного или
+нескольких контейнеров) и разнесёт нужные значения аутентификации по всему приложению.
+По умолчанию инстанс OpenSearch состоит только из одного контейнера.
+
+Кроме того, самому приложению Yahont нужно знать, что OpenSearch включён и как подключиться к инстансу OpenSearch.
+В шаблоне configmap, которым управляет Helm-чарт Yahont, если упомянутый выше раздел OpenSearch включён (по умолчанию),
+переменные окружения для хоста и порта OpenSearch и признак его включённости будут заданы по всему приложению.
+
+В файле **docker-compose** Yahont сервис `opensearch` определяет и желаемую конфигурацию, и аутентификацию.
+Вместо configmap, как в Helm, приложение просто читает переменные окружения, которые можно задать в файле `.env`.
+
+## Аутентификация {#auth}
+
+Если это явно не отключено, OpenSearch требует задать начальные учётные данные для кластера,
+которые используются для аутентификации всех запросов. Пароль должен соответствовать определённым требованиям сложности:
+минимум 8 символов, хотя бы одна заглавная, строчная буква, цифра и специальный символ.
+
+Если используется **docker-compose** Yahont, специальных действий, как правило, не требуется,
+так как файл compose задаёт начальный пароль по умолчанию, который совпадает со значением по умолчанию,
+к которому Yahont возвращается при отсутствии соответствующей переменной окружения `OPENSEARCH_ADMIN_PASSWORD`.
+
+Если вы хотите задать другой пароль, задайте переменную окружения `OPENSEARCH_ADMIN_PASSWORD` с нужной строкой,
+убедитесь, что `docker` ссылается на эту переменную при запуске `docker-compose`,
+а также что эта переменная есть в файле `.env`, на который ссылается Yahont.
+
+Если используется **Helm**, пароля по умолчанию нет, и нужно указать какой-либо пароль в файле `values.yaml`,
+указанном в команде Helm, как показано:
+
+```yaml values.yaml
+# Other overrides you may have.
+
+configMap:
+  # Other overrides you may have.
+
+  OPENSEARCH_ADMIN_PASSWORD: <your chosen password>
+
+auth:
+  # Other overrides you may have.
+
+  opensearch:
+   values:
+     opensearch_admin_password: <your chosen password>
+```
+
+## Если используется собственный управляемый OpenSearch {#if-using-your-own-provisioned-managed-opensearch}
+
+[Если вы создали управляемый инстанс](/deployment/local/terraform#opensearch-optional),
+Helm не нужно запускать для вас контейнер или кластер OpenSearch. Это можно отключить в файле значений Helm `yaml`.
+
+```yaml values.yaml
+# Other overrides you may have.
+
+opensearch:
+  enabled: false
+
+auth:
+  # Other overrides you may have.
+
+  opensearch:
+    enabled: false
+```
+
+Также нужно указать, какими должны быть переменные окружения, исходя из кластера OpenSearch.
+Эти переменные будут распространены по всему приложению Yahont.
+
+```yaml values.yaml
+# Other overrides you may have.
+
+configMap:
+  # Other overrides you may have.
+
+  OPENSEARCH_ADMIN_USERNAME: "<the username you set when creating the OpenSearch cluster>"
+  OPENSEARCH_ADMIN_PASSWORD: "<the password you set when creating the OpenSearch cluster>"
+  OPENSEARCH_HOST: "<the host name of the OpenSearch cluster, as reported on the AWS console; do not include https://>"
+  OPENSEARCH_REST_API_PORT: "443"
+  USING_AWS_MANAGED_OPENSEARCH: "true"
+```

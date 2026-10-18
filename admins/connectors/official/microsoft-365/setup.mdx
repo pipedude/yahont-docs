@@ -1,0 +1,417 @@
+---
+title: "Настройка Microsoft 365"
+description: "Регистрация приложения Microsoft Entra, разрешения и учётные данные, общие для всех коннекторов Microsoft 365"
+---
+
+Yahont читает Microsoft 365 через четыре коннектора: [SharePoint](/admins/connectors/official/microsoft-365/sharepoint),
+[OneDrive](/admins/connectors/official/microsoft-365/onedrive),
+[Microsoft Teams](/admins/connectors/official/microsoft-365/teams)
+и [Outlook](/admins/connectors/official/microsoft-365/outlook). Все четыре входят в Microsoft Graph как приложение,
+зарегистрированное в Microsoft Entra, а не как пользователь, и настраиваются одинаково: зарегистрировать приложение,
+предоставить ему разрешения, передать Yahont учётные данные. На этой странице собраны эти общие шаги.
+На странице каждого коннектора сказано, что ему нужно сверх них.
+
+Одна регистрация приложения может обслуживать все коннекторы.
+Предоставьте ей объединение разрешений из таблицы ниже или зарегистрируйте по одному приложению на коннектор,
+чтобы разделить разрешения.
+
+## Перед началом {#before-you-begin}
+
+Вам понадобятся:
+
+- Тенант Microsoft 365
+- Аккаунт пользователя Microsoft Entra с ролью **Global Administrator** или **Privileged Role Administrator**.
+  Коннекторам нужны разрешения приложения Microsoft Graph,
+  и дать согласие на них от имени вашей организации могут только эти две роли.
+  **Application Administrator** и **Cloud Application Administrator** могут зарегистрировать приложение,
+  но не могут дать ему согласие.
+- Аккаунт администратора Yahont
+- Решение о том, как коннектор аутентифицируется: секрет клиента или сертификат.
+  Смена позже означает создание новых учётных данных и, возможно, переиндексацию.
+
+Некоторым вариантам нужно больше: администратор Teams для транскриптов собраний (описано на странице Teams)
+и администратор SharePoint или Global Administrator,
+когда вы [ограничиваете приложение отдельными сайтами](#limiting-the-app-to-specific-sites).
+
+## Выбор метода аутентификации {#choose-an-authentication-method}
+
+Каждый коннектор принимает либо секрет клиента, либо сертификат.
+
+<Tip>
+  Используйте сертификат, если нужна синхронизация прав SharePoint или файлы каналов Teams,
+  либо если ваша организация не разрешает секреты клиента. В остальных случаях секрет клиента настроить быстрее.
+</Tip>
+
+|                                              | Секрет клиента                                  | Сертификат                                                           |
+| -------------------------------------------- | ----------------------------------------------- | -------------------------------------------------------------------- |
+| Индексация файлов, страниц, веток и почты    | Да                                              | Да                                                                   |
+| Синхронизация прав SharePoint                | **Нет**                                         | Да                                                                   |
+| Teams **Include Attachments**                | **Нет**                                         | Да                                                                   |
+| Синхронизация прав OneDrive, Teams и Outlook | Да                                              | Да                                                                   |
+| Трудоёмкость настройки                       | Ниже. Портал создаёт секрет за вас.             | Выше. Вы создаёте сертификат и загружаете его часть в Microsoft.      |
+
+SharePoint не выдаёт данные о правах или списки читателей файлов канала приложению, вошедшему с секретом,
+какие бы разрешения вы ему ни дали.
+
+## Разрешения {#permissions}
+
+Все разрешения на этой странице — это разрешения **Application** только на чтение, за одним исключением:
+**Sites.FullControl.All** в API **SharePoint**.
+SharePoint показывает список доступа элемента только приложению с полным контролем над сайтом.
+Yahont читает с его помощью и никогда ничего не записывает в SharePoint.
+
+| Коннектор и вариант                           | Разрешения приложения Microsoft Graph                                                                            | Также нужно                                                                                                                                                                                                                             |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Файлы и страницы SharePoint                   | **Sites.Read.All** или **Sites.Selected** с выдачей `read` для каждого сайта                                     | Ничего                                                                                                                                                                                                                                  |
+| SharePoint **Auto Sync Permissions**          | **GroupMember.Read.All**, **Group.Read.All**, **Directory.Read.All**, **User.Read.All**, **Member.Read.Hidden** | Учётные данные с сертификатом и **User.Read.All** в API **SharePoint**, а также **Sites.FullControl.All** в API **SharePoint** или, с **Sites.Selected**, выдача `fullcontrol` для каждого сайта. |
+| Файлы OneDrive                                | **User.Read.All**, а также **Sites.Read.All** или **Sites.Selected** с выдачей `read` для каждого личного сайта   | Ничего                                                                                                                                                                                                                                  |
+| OneDrive **Auto Sync Permissions**            | **User.Read.All**, **GroupMember.ReadBasic.All**, а также разрешение на сайт выше                               | **Member.Read.Hidden**, когда доступ к файлам имеют группы со скрытым составом                                                                                                                  |
+| Ветки каналов Teams (всегда включены)         | **Team.ReadBasic.All**, **Channel.ReadBasic.All**, **ChannelMessage.Read.All**                                  | Ничего                                                                                                                                                                                                                                  |
+| Teams **Auto Sync Permissions**               | **ChannelMember.Read.All**, **User.Read.All**                                                                   | Ничего                                                                                                                                                                                                                                  |
+| Teams **Include Attachments**                 | **Files.Read.All** или **Sites.Read.All**, **GroupMember.Read.All**, **User.Read.All**                          | Учётные данные с сертификатом и **Sites.FullControl.All** в API **SharePoint** или, с **Sites.Selected**, выдача `fullcontrol` для каждого сайта канала |
+| Teams **Include Inline Images**               | Больше ничего                                                                                                   | Включённые извлечение и анализ изображений в настройках поиска Yahont                                                                                                                                                                    |
+| Teams **Include Meeting Transcripts**         | **OnlineMeetingTranscript.Read.All**, **OnlineMeetings.Read.All**, **User.Read.All**                            | Настройка **Transcript API access** в центре администрирования Teams и политика доступа приложения, предоставленная организаторам собраний. См. [Microsoft Teams](/admins/connectors/official/microsoft-365/teams#configure-microsoft-teams). |
+| Teams **Include Meeting Chats**               | **Chat.Read.All**, **User.Read.All**                                                                            | Ничего                                                                                                                                                                                                                                  |
+| Почта Outlook (всегда включена)               | **Mail.Read**, **User.Read.All**                                                                                | Ничего                                                                                                                                                                                                                                  |
+| Outlook **Include Calendar**                  | **Calendars.Read**                                                                                              | Ничего                                                                                                                                                                                                                                  |
+
+<Note>
+  В новой регистрации уже указано делегированное разрешение **User.Read**. Коннекторы его никогда не используют,
+  так как входят как приложение, а не как человек. Оставьте его или удалите — как предпочитаете.
+</Note>
+
+## Регистрация приложения {#register-the-application}
+
+<Steps>
+  <Step title="Создайте регистрацию">
+    Войдите в [центр администрирования Microsoft Entra](https://entra.microsoft.com)
+    или [портал Azure](https://portal.azure.com/) (`https://entra.microsoft.us` для GCC High или DoD)
+    и откройте **App registrations**. Выберите **New registration**, назовите её узнаваемо,
+    например `Onyx Microsoft 365 Connector`,
+    оставьте поддерживаемые типы аккаунтов и URI перенаправления по умолчанию и нажмите **Register**.
+  </Step>
+
+  <Step title="Запишите два ID">
+    На странице **Overview** приложения скопируйте **Application (client) ID** и **Directory (tenant) ID**.
+    Yahont запрашивает оба, а политике доступа приложения для транскриптов собраний Teams нужен client ID.
+  </Step>
+</Steps>
+
+## Предоставление разрешений {#grant-permissions}
+
+Разрешения берутся из двух мест на портале: Microsoft Graph и SharePoint. Сначала добавьте их все,
+затем один раз дайте согласие в конце.
+
+<Steps>
+  <Step title="Добавьте разрешения приложения Microsoft Graph">
+    Откройте **API permissions → Add a permission → Microsoft Graph → Application permissions** и добавьте каждое
+    разрешение Graph из [таблицы выше](#permissions) для коннекторов и вариантов, которые вы планируете включить.
+    Нажмите **Add permissions**.
+
+    Добавьте разрешения для варианта сейчас, если планируете включить его позже, либо вернитесь и добавьте их,
+    когда включите. Чтобы ограничить приложение отдельными сайтами SharePoint,
+    добавьте **Sites.Selected** вместо **Sites.Read.All**. См.
+    [Ограничение приложения отдельными сайтами](#limiting-the-app-to-specific-sites).
+  </Step>
+
+  <Step title="Добавьте разрешения приложения SharePoint">
+    Нужно для синхронизации прав SharePoint и для Teams **Include Attachments**.
+    Выберите **Add a permission → SharePoint → Application permissions** и добавьте **Sites.FullControl.All**.
+    Для синхронизации прав SharePoint здесь также нужен **User.Read.All**,
+    чтобы сопоставлять списки доступа с людьми в вашем каталоге.
+
+    Добавляйте их в разделе **SharePoint**, а не Microsoft Graph. Это два разных разрешения с одинаковыми названиями,
+    и добавление разрешения Graph по ошибке — частая причина того, что синхронизация прав позже не работает.
+  </Step>
+
+  <Step title="Дайте согласие администратора">
+    Выберите **Grant admin consent for \<your organization\>** и подтвердите.
+    После этого каждое разрешение в списке должно показывать **Granted**. Пока вы этого не сделаете,
+    ни одно из них не действует. Давайте согласие заново каждый раз, когда позже добавляете разрешение.
+
+    Для этого шага нужна роль **Global Administrator** или **Privileged Role Administrator**.
+    Никакая другая роль не может дать согласие на разрешения приложения Microsoft Graph, поэтому,
+    если кнопка недоступна или согласие не удаётся, попросите кого-то с одной из этих ролей сделать это.
+  </Step>
+</Steps>
+
+<Note>
+  Microsoft применяет новое разрешение или согласие в течение нескольких минут, но не везде сразу.
+  Может пройти около получаса, прежде чем каждый вход будет нести новые разрешения,
+  поэтому одна и та же проверка в Yahont может пройти, а потом не пройти. Подождите и повторите,
+  прежде чем менять что-то ещё.
+</Note>
+
+## Создание учётных данных {#create-the-credential}
+
+### Секрет клиента {#client-secret}
+
+<Steps>
+  <Step title="Откройте Certificates & secrets">
+    В регистрации приложения откройте **Certificates & secrets → Client secrets**.
+  </Step>
+
+  <Step title="Добавьте секрет">
+    Выберите **New client secret**, задайте описание и выберите срок действия. Microsoft разрешает до 24 месяцев.
+    Нажмите **Add**.
+  </Step>
+
+  <Step title="Сразу скопируйте значение">
+    Скопируйте столбец **Value**, а не **Secret ID**. Значение показывается, только пока вы остаётесь на этой странице.
+    Как только вы уйдёте со страницы, вернуть его нельзя, и придётся создавать новый секрет.
+  </Step>
+</Steps>
+
+### Сертификат {#certificate}
+
+Сертификат идентифицирует приложение Entra файлом ключа вместо пароля. Вам нужны два файла, оба из одного сертификата:
+
+- **Публичный сертификат** (`.cer`, `.pem` или `.crt`), который вы загружаете в Entra ID
+- **Файл `.pfx`**, защищённый паролем, который вы загружаете в Yahont
+
+Отправка не того файла не туда — самая частая проблема при этой настройке.
+Либо получите сертификат в удостоверяющем центре вашей организации, либо создайте самоподписанный.
+
+<Steps>
+  <Step title="Создайте закрытый ключ и сертификат">
+    ```bash
+    # Private key
+    openssl genrsa -out onyx-m365.key 2048
+
+    # Self-signed certificate, valid for two years
+    openssl req -new -x509 -days 730 \
+      -key onyx-m365.key \
+      -out onyx-m365.crt \
+      -subj "/CN=Onyx Microsoft 365 Connector"
+    ```
+  </Step>
+
+  <Step title="Упакуйте закрытый ключ в .pfx">
+    ```bash
+    openssl pkcs12 -export \
+      -inkey onyx-m365.key \
+      -in onyx-m365.crt \
+      -out onyx-m365.pfx
+    ```
+
+    Вас попросят ввести пароль экспорта. Задайте его и запишите: Yahont не принимает пустой пароль,
+    запрашивает его позже и не может его восстановить.
+  </Step>
+
+  <Step title="Проверьте, что у вас есть">
+    | Файл            | Куда отправляется                              |
+    | --------------- | ---------------------------------------------- |
+    | `onyx-m365.crt` | В Entra ID                                     |
+    | `onyx-m365.pfx` | В Yahont                                        |
+    | `onyx-m365.key` | Никуда. Храните в надёжном месте или удалите.  |
+
+    Надёжно храните `.pfx` и его пароль.
+  </Step>
+
+  <Step title="Загрузите публичный сертификат в Entra">
+    В регистрации приложения откройте **Certificates & secrets → Certificates**, выберите **Upload certificate**,
+    выберите `onyx-m365.crt`, добавьте описание и нажмите **Add**.
+  </Step>
+</Steps>
+
+<Note>
+  Если ваш удостоверяющий центр выдаёт только `.pfx`,
+  извлеките публичную часть для Entra командой `openssl pkcs12 -in yourcert.pfx -clcerts -nokeys -out yourcert.crt`.
+</Note>
+
+<Warning>
+  Entra принимает только файлы `.cer`, `.pem` и `.crt`.
+  Загрузка `.pfx` завершается ошибкой *Upload a certificate (public key) with one of the following file types: .cer,
+  .pem, .crt*. Файл `.pfx` нужно передать Yahont, а не Entra.
+</Warning>
+
+### Ввод учётных данных в Yahont {#enter-the-credential-in-onyx}
+
+Каждый коннектор запрашивает учётные данные при добавлении.
+Выберите существующие учётные данные из списка или нажмите **Create New**,
+выберите вкладку для вашего метода аутентификации и введите данные из регистрации приложения:
+
+- Вкладка **Client Secret**: **Application (client) ID**, **Directory (tenant) ID** и **Value** секрета, который вы
+  скопировали
+- Вкладка **Certificate Authentication**: два ID, файл `.pfx` в поле **Private Key (PFX)** и пароль экспорта,
+  заданный вами, в поле **Certificate Password**. Каждое поле подписано названием коннектора.
+
+Yahont хранит учётные данные по типам коннекторов,
+поэтому список в форме SharePoint показывает только учётные данные SharePoint.
+Чтобы использовать одну регистрацию приложения для нескольких коннекторов,
+введите одни и те же ID и секрет или сертификат по одному разу для каждого коннектора.
+
+## Ограничение приложения отдельными сайтами {#limiting-the-app-to-specific-sites}
+
+По умолчанию у приложения есть **Sites.Read.All**, что позволяет ему читать каждый сайт SharePoint в тенанте,
+даже если коннектор называет только один. Если это слишком широко,
+предоставьте вместо этого **Sites.Selected** и авторизуйте приложение по одному сайту. Пока вы этого не сделаете,
+приложение ничего не сможет читать. Это относится к обоим методам аутентификации, к OneDrive пользователя,
+который является отдельным сайтом, и к сайтам SharePoint, на которых лежат файлы каналов Teams.
+
+Предоставляемая роль зависит от того, что делает коннектор:
+
+| Использование коннектора                 | Роль для каждого сайта     | Также нужно разрешение Entra                                                                                                          |
+| ---------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Только индексация SharePoint             | `read`                     | Microsoft Graph → **Sites.Selected**                                                                                                  |
+| Индексация SharePoint с синхронизацией прав | `fullcontrol`           | Microsoft Graph → **Sites.Selected**. Выдача для каждого сайта заменяет **Sites.FullControl.All** на уровне тенанта в API SharePoint. |
+| Индексация и синхронизация прав OneDrive | `read`                     | Microsoft Graph → **Sites.Selected**                                                                                                  |
+| Teams **Include Attachments**            | `fullcontrol`              | Microsoft Graph → **Files.Read.All**, который коннектору нужен для чтения файлов каналов. У приватных и общих каналов свой сайт.      |
+
+Синхронизации прав SharePoint и файлам каналов Teams нужна роль `fullcontrol`,
+потому что SharePoint показывает список доступа элемента только приложению с полным контролем над сайтом.
+Yahont никогда ничего не записывает в SharePoint.
+
+<Accordion title="Предоставление сайта приложению">
+  Нужен аккаунт Global Administrator или SharePoint Administrator.
+  В шагах ниже используется [Microsoft Graph Explorer](https://developer.microsoft.com/en-us/graph/graph-explorer).
+  То же самое можно сделать с помощью [PnP
+  PowerShell](https://pnp.github.io/powershell/cmdlets/Grant-PnPAzureADAppSitePermission.html)
+  (`Grant-PnPAzureADAppSitePermission`).
+
+  <Steps>
+    <Step title="Войдите и дайте согласие">
+      Войдите в Graph Explorer,
+      затем выберите значок профиля → **Consent to permissions** и включите **Sites.FullControl.All**.
+      Это позволяет Graph Explorer выдавать разрешения на сайты. Вашему приложению Yahont это ничего не предоставляет.
+    </Step>
+
+    <Step title="Найдите ID сайта">
+      Выполните запрос **GET**, подставив ваш тенант и имя сайта:
+
+      ```
+      GET https://graph.microsoft.com/v1.0/sites/contoso.sharepoint.com:/sites/YourSiteName?$select=id
+      ```
+
+      Для OneDrive сайт — `contoso-my.sharepoint.com:/personal/jane_contoso_com`. Скопируйте `id` из ответа.
+      Это значение из трёх частей, например `contoso.sharepoint.com,5a58bb09-…,9f2ec1da-…`.
+    </Step>
+
+    <Step title="Предоставьте роль">
+      Измените метод на **POST**, используя только что скопированный ID сайта:
+
+      ```
+      POST https://graph.microsoft.com/v1.0/sites/{site-id}/permissions
+      ```
+
+      Отправьте это тело.
+      Задайте `roles` равным `["read"]` только для индексации или `["fullcontrol"]` для синхронизации прав.
+      Задайте `id` равным **Application (client) ID** вашего приложения Yahont.
+
+      ```json
+      {
+        "roles": ["read"],
+        "grantedToIdentities": [
+          {
+            "application": {
+              "id": "00000000-0000-0000-0000-000000000000",
+              "displayName": "Onyx Microsoft 365 Connector"
+            }
+          }
+        ]
+      }
+      ```
+
+      Успешная выдача возвращает `201 Created`.
+    </Step>
+
+    <Step title="Проверьте">
+      Верните метод **GET** на тот же URL и убедитесь, что предоставленная вами роль отображается у вашего приложения.
+
+      ```
+      GET https://graph.microsoft.com/v1.0/sites/{site-id}/permissions
+      ```
+    </Step>
+  </Steps>
+
+  Повторите последние три шага для каждого сайта, который индексирует коннектор.
+</Accordion>
+
+## Национальные облака {#national-clouds}
+
+У каждого коннектора есть **Authority Host** и **Graph API Host** в расширенных настройках,
+а у коннектора SharePoint также **SharePoint Domain Suffix**. Все они должны описывать одно и то же облако.
+Yahont отклоняет authority host, не соответствующий хосту Graph, при сохранении и исправляет суффикс домена,
+не соответствующий хосту Graph, с предупреждением в журнале.
+
+| Облако                   | Authority Host                      | Graph API Host                            | Суффикс домена   |
+| ------------------------ | ----------------------------------- | ----------------------------------------- | ---------------- |
+| Commercial               | `https://login.microsoftonline.com` | `https://graph.microsoft.com`             | `sharepoint.com` |
+| US Government (GCC High) | `https://login.microsoftonline.us`  | `https://graph.microsoft.us`              | `sharepoint.us`  |
+| US Government (DoD)      | `https://login.microsoftonline.us`  | `https://dod-graph.microsoft.us`          | `sharepoint.us`  |
+| Китай (21Vianet)         | `https://login.chinacloudapi.cn`    | `https://microsoftgraph.chinacloudapi.cn` | `sharepoint.cn`  |
+| Германия                 | `https://login.microsoftonline.de`  | `https://graph.microsoft.de`              | `sharepoint.de`  |
+
+## Ротация секрета или сертификата {#rotating-the-secret-or-certificate}
+
+Индексация останавливается, когда секрет или сертификат истекает. Чтобы выполнить ротацию без простоя:
+
+<Steps>
+  <Step title="Добавьте новый рядом со старым">
+    В **Certificates & secrets** добавьте новый секрет клиента и скопируйте его значение или загрузите новый публичный
+    сертификат. Entra хранит несколько одновременно, и оба работают, пока не истечёт старый.
+  </Step>
+
+  <Step title="Обновите учётные данные в Yahont">
+    В **Панель администратора → Существующие коннекторы** откройте учётные данные каждого коннектора,
+    использующего эту регистрацию приложения, и замените значение секрета или `.pfx` и его пароль.
+  </Step>
+
+  <Step title="Удалите старый">
+    После успешной попытки индексации удалите предыдущий секрет или сертификат в Entra.
+  </Step>
+</Steps>
+
+## Устранение неполадок {#troubleshooting}
+
+Проблемы с учётными данными, согласием и сертификатом с сообщением, которое показывает каждый коннектор. Проблемы,
+свойственные конкретному коннектору, перечислены на его странице.
+
+<AccordionGroup>
+  <Accordion title="invalid_client, Invalid or expired Microsoft Teams credentials, Microsoft rejected the client secret or certificate или ошибка с AADSTS7000215 или AADSTS7000222">
+    Entra не распознаёт секрет или сертификат, либо они относятся к другой регистрации приложения.
+    Для секрета проверьте, что скопировали **Value**, а не **Secret ID**, и что срок его действия не истёк.
+    Для сертификата, как правило,
+    срок действия истёк или `.pfx` и загруженный публичный сертификат получены из разных сертификатов.
+    Создайте новый и обновите учётные данные.
+  </Accordion>
+
+  <Accordion title="Microsoft не знает этот каталог">
+    Неверен ID каталога или authority host.
+    Для национального облака задайте все хосты из одной строки раздела [Национальные облака](#national-clouds).
+  </Accordion>
+
+  <Accordion title="Upload a certificate (public key) with one of the following file types">
+    Вы загрузили `.pfx` в Entra. Загрузите вместо него `.crt`, `.cer` или `.pem`, а `.pfx` оставьте для Yahont.
+  </Accordion>
+
+  <Accordion title="Failed to load certificate или The PFX bundle could not be opened">
+    Yahont не смог открыть `.pfx`, обычно потому что пароль неверный или файл вообще не является `.pfx`.
+    Повторите раздел [Сертификат](#certificate).
+  </Accordion>
+
+  <Accordion title="Unsupported app only token">
+    Синхронизация прав SharePoint или файлы каналов Teams работают с учётными данными на основе секрета клиента,
+    а SharePoint не выдаёт данные о правах приложению, вошедшему с секретом. Проверьте,
+    к каким учётным данным привязан коннектор, и пересоздайте их с [сертификатом](#certificate).
+  </Accordion>
+
+  <Accordion title="Разрешения отображаются как не предоставленные">
+    Согласие администратора не было дано или было дано до добавления последнего разрешения.
+    Выберите **Grant admin consent** ещё раз.
+  </Accordion>
+
+  <Accordion title="Разрешение показывает Granted, но Microsoft по-прежнему отвечает 403">
+    Разрешение добавлено не для того API. SharePoint проверяет собственное **Sites.FullControl.All**,
+    а разрешение Graph с таким же названием не считается.
+  </Accordion>
+
+  <Accordion title="Проверка настройки проходит, а через несколько минут не проходит">
+    Microsoft всё ещё применяет изменение разрешения, согласия или политики доступа приложения.
+    Подождите около получаса и повторите, прежде чем менять что-то ещё.
+  </Accordion>
+
+  <Accordion title="Индексация работала, а потом остановилась в определённую дату">
+    Секрет или сертификат истёк. См. [Ротация секрета или сертификата](#rotating-the-secret-or-certificate).
+  </Accordion>
+</AccordionGroup>

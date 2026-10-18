@@ -1,0 +1,112 @@
+## Установщик {#installer}
+
+Рекомендуемый способ установить Yahont — установщик. Он скачивает репозиторий Yahont CE,
+создаёт файл `.env` с секретом входа и запускает Yahont в Docker Compose. Первый запуск скачивает образы из Docker Hub:
+время зависит от канала связи.
+
+Установщику нужны Git, Docker и Docker Compose.
+
+<Tabs>
+  <Tab title="Linux / macOS">
+    Стандартный режим:
+
+    ```bash
+    curl -fsSL https://yahont.ai/install_yahont.sh | bash
+    ```
+
+    Режим «Лайт» (чат без индексации документов):
+
+    ```bash
+    curl -fsSL https://yahont.ai/install_yahont.sh | bash -s -- --lite
+    ```
+  </Tab>
+
+  <Tab title="Windows (PowerShell)">
+    Нужен Docker Desktop.
+
+    Стандартный режим:
+
+    ```powershell
+    irm https://yahont.ai/install_yahont.ps1 | iex
+    ```
+
+    Режим «Лайт» (чат без индексации документов):
+
+    ```powershell
+    & ([scriptblock]::Create((irm https://yahont.ai/install_yahont.ps1))) -Lite
+    ```
+  </Tab>
+</Tabs>
+
+Описание режимов смотрите в разделе [Обзор развёртывания](/deployment/overview#deployment-modes).
+
+Параметры установщика:
+
+| Linux и macOS | Windows | Назначение |
+| --- | --- | --- |
+| `--lite` | `-Lite` | Режим «Лайт» |
+| `--dir DIR` | `-Dir DIR` | Каталог установки. По умолчанию `yahont-ce` |
+| `--ref REF` | `-Ref REF` | Ветка или тег репозитория. По умолчанию основная ветка |
+| `--project NAME` | `-Project NAME` | Имя проекта Docker Compose. По умолчанию `yahont`. Нужно, чтобы держать две установки рядом |
+| `--bind-local PORT` | `-BindLocal PORT` | Слушать только `127.0.0.1:PORT`: для сервера с обратным прокси. Нужен Docker Compose 2.24.4 или новее |
+| `--no-start` | `-NoStart` | Только подготовить файлы и не запускать контейнеры |
+| `--help` | `-Help` | Справка |
+
+Установщик не требует `sudo` и прав администратора. Он не перезаписывает существующий файл `.env`.
+С параметром `--lite` (`-Lite`) он сам записывает в `.env` значения `COMPOSE_PROFILES` и `COMPOSE_FILE`.
+Поэтому следующие команды `docker compose` в этом каталоге работают без ключа `-f`.
+
+На Linux и в Windows установщик предупреждает,
+если памяти меньше 3 ГБ в режиме «Лайт» или меньше 10 ГБ в стандартном режиме. Прочитайте скрипт до запуска:
+[install_yahont.sh](https://yahont.ai/install_yahont.sh), [install_yahont.ps1](https://yahont.ai/install_yahont.ps1).
+
+## Ручная установка {#manual-installation}
+
+Те же шаги без скрипта:
+
+```bash
+git clone https://github.com/pipedude/yahont-ce.git
+cd yahont-ce/deployment/docker_compose
+cp env.template .env
+openssl rand -hex 32   # вставьте результат в USER_AUTH_SECRET в файле .env
+docker compose up -d
+```
+
+Без значения `USER_AUTH_SECRET` сервер API не запустится. Для рабочей установки смените в `.env` пароли по умолчанию.
+Подсказки есть в самом файле.
+
+В Windows для ручной установки используйте установщик или WSL2.
+
+<Note>
+  `docker compose up -d` скачивает готовые образы `yahontai/yahont-ce-backend`,
+  `yahontai/yahont-ce-web` и `yahontai/yahont-ce-model-server` из Docker Hub. Версию задаёт `IMAGE_TAG` в `.env`:
+  по умолчанию `latest`. Чтобы закрепить выпуск, укажите его тег вида `vX.Y.Z`.
+  Образы опубликованы для платформы linux/amd64. Для ARM готовых образов нет.
+
+  Чтобы собрать образы из исходного кода вашей копии репозитория (свои правки, ARM),
+  запускайте `docker compose up -d --build`. Сборка веб-образа требует около 4 ГБ оперативной памяти.
+
+  Обновление: `git pull`, затем `docker compose pull` и `docker compose up -d`. Если вы собирали образы сами,
+  `docker compose pull` заменит их опубликованными, а `docker compose up -d --build` вернёт ваши.
+</Note>
+
+## После запуска {#after-start}
+
+Откройте [http://localhost:3000](http://localhost:3000). Если вы запустили Yahont на удалённом сервере,
+откройте `http://<адрес сервера>:3000`. `localhost` — это компьютер, на котором работают контейнеры.
+
+Первый зарегистрированный пользователь становится администратором. Затем подключите модель в панели администратора.
+
+Подробности о запуске, обновлении и остановке — на странице [Docker](/deployment/local/docker).
+
+## Дальнейшие шаги {#next-steps}
+
+<CardGroup cols={2}>
+  <Card title="Развёртывание Yahont в Docker" icon="docker" href="/deployment/local/docker">
+    Режим «Лайт», обновление, логи, остановка и привязка порта к локальному адресу.
+  </Card>
+
+  <Card title="Yahont за обратным прокси с HTTPS" icon="lock" href="/deployment/production/reverse_proxy">
+    Публикация Yahont на сервере с публичным адресом: Nginx и сертификаты Let's Encrypt.
+  </Card>
+</CardGroup>

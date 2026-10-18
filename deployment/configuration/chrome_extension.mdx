@@ -1,0 +1,191 @@
+---
+title: "Расширение для Chrome"
+description: "Используйте Yahont в Chrome на любой странице"
+icon: "chrome"
+---
+
+Расширение Yahont для Chrome даёт пользователям доступ к Yahont из любого места в браузере.
+
+Возможности:
+
+- Домашняя страница Yahont в браузере
+- Боковая панель Yahont в браузере
+- Контекстный поиск по выделенному тексту
+- Возможности глубокого исследования
+
+<Info>
+  Скоро: чат с контекстом всей страницы и индексирование посещённых страниц в вашу базу знаний Yahont!
+</Info>
+
+<img className="rounded-image" src="/assets/overview/onyx_anywhere/onyx_chrome_extension.png" alt="Домашняя страница расширения Yahont для Chrome"/>
+
+## Варианты установки {#installation-options}
+
+**Пользователи Yahont Cloud**: установите напрямую из Chrome Web Store
+
+**Пользователи с самостоятельным размещением**: инструкции по установке предоставит ваш администратор
+
+## Ручная установка (самостоятельное размещение) {#manual-installation-self-hosted}
+
+<Steps>
+  <Step title="Получите файлы расширения">
+    Клонируйте репозиторий [расширения Yahont для Chrome](https://github.com/onyx-dot-app/onyx-chrome-extension)
+    с GitHub.
+  </Step>
+
+  <Step title="Включите режим разработчика">
+    - Откройте `chrome://extensions/` в браузере Chrome
+    - В правом верхнем углу нажмите **Developer mode**, чтобы включить его
+
+    <img className="rounded-image" src="/assets/deployment/chrome_extension.png" alt="Режим разработчика в расширениях Chrome"/>
+  </Step>
+
+  <Step title="Загрузите расширение">
+    - Нажмите **Load unpacked**
+    - Выберите папку с файлами расширения Yahont для Chrome
+    - Нажмите **Load**
+
+    Расширение установлено и готово к настройке.
+  </Step>
+
+  <Step title="Настройте параметры подключения">
+    - Нажмите три точки (...) рядом с расширением
+    - Выберите **Options**
+    - Задайте **Root Domain** равным URL вашего инстанса Yahont с самостоятельным размещением
+
+    <img className="rounded-image" src="/assets/deployment/extension_settings.png" alt="Меню настроек расширения"/>
+
+    <img className="rounded-image" src="/assets/deployment/root_domain.png" alt="Настройка корневого домена"/>
+  </Step>
+</Steps>
+
+<Note>
+  Теперь расширение подключится к вашему инстансу Yahont с самостоятельным размещением,
+  и его можно использовать на любой странице в Chrome.
+</Note>
+
+## Развёртывание в организации {#enterprise-deployment}
+
+Для организаций, развёртывающих расширение в большом масштабе,
+используйте Google Admin Console для централизованного управления.
+
+<Steps>
+  <Step title="Откройте управление Chrome">
+    - Войдите в Google Admin console
+    - Откройте **Devices → Chrome → Apps and extensions**
+  </Step>
+
+  <Step title="Добавьте расширение">
+    - Получите ID расширения Chrome у сотрудника команды Yahont - Нажмите жёлтый
+    значок плюса, чтобы добавить расширение - Введите ID расширения Chrome и нажмите **Add**
+  </Step>
+
+  <Step title="Настройте развёртывание">
+    Настройте параметры развёртывания, такие как:
+
+    - Принудительная установка для отдельных организационных подразделений
+    - Управление доступом пользователей
+    - Политики обновления и управление версиями
+    - Политики установки (разрешена, принудительная или заблокирована)
+  </Step>
+
+  <Step title="Сохраните конфигурацию">
+    <Warning>
+      Не забудьте сохранить изменения после настройки параметров расширения.
+    </Warning>
+  </Step>
+</Steps>
+
+### Предварительная настройка URL Yahont с помощью управляемой политики {#pre-set-the-onyx-url-with-a-managed-policy}
+
+Расширение версии 1.2 и новее читает настройки из управляемого хранилища Chrome. Используйте его,
+чтобы задать URL Yahont и поведение новой вкладки для всех пользователей. Настройки, заданные политикой,
+доступны только для чтения в интерфейсе расширения и показывают уведомление «управляется вашей организацией».
+
+ID расширения в Chrome Web Store — `dacfbnglakogghooelgjflkhjcdbemia`. В примерах ниже используется этот ID.
+Если вы размещаете расширение самостоятельно, замените его своим ID из `chrome://extensions`.
+
+| Ключ                         | Тип     | Описание                                              |
+| ---------------------------- | ------- | ----------------------------------------------------- |
+| `onyxExtensionDomain`        | string  | Корневой URL вашего инстанса Yahont (завершающий `/` удаляется) |
+| `onyxExtensionDefaultNewTab` | boolean | Принудительно включить или выключить переключатель «Использовать Yahont как страницу новой вкладки» |
+
+<Tabs>
+  <Tab title="Google Admin Console">
+    - Откройте **Devices → Chrome → Apps and extensions**
+    - Выберите расширение Yahont
+    - В разделе **Policy for extensions** вставьте JSON ниже
+
+    ```json
+    {
+      "onyxExtensionDomain": {
+        "Value": "https://yahont.example.com"
+      },
+      "onyxExtensionDefaultNewTab": {
+        "Value": false
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="Политика Windows / macOS / Linux">
+    Задайте политику `3rdparty.extensions.<extension-id>`.
+
+    **Linux** – сохраните как `/etc/opt/chrome/policies/managed/onyx.json`:
+
+    ```json
+    {
+      "3rdparty": {
+        "extensions": {
+          "dacfbnglakogghooelgjflkhjcdbemia": {
+            "onyxExtensionDomain": "https://yahont.example.com",
+            "onyxExtensionDefaultNewTab": false
+          }
+        }
+      }
+    }
+    ```
+
+    **Windows** – добавьте строковые значения через Group Policy, Intune или файл `.reg`:
+
+    ```text
+    HKLM\Software\Policies\Google\Chrome\3rdparty\extensions\dacfbnglakogghooelgjflkhjcdbemia\policy
+      onyxExtensionDomain        = "https://yahont.example.com"
+      onyxExtensionDefaultNewTab = "false"
+    ```
+
+    **macOS** – разверните профиль конфигурации (MDM или MCX)
+    для домена настроек `com.google.Chrome.extensions.dacfbnglakogghooelgjflkhjcdbemia` с теми же ключами.
+    Chrome читает политику расширений только из управляемых настроек; `defaults write` недостаточно.
+  </Tab>
+</Tabs>
+
+Опустите ключ, чтобы пользователи могли задать это значение сами. Проверьте `chrome://policy` на клиенте,
+чтобы убедиться, что политика применена.
+
+### Самостоятельное размещение расширения {#self-hosting-the-extension}
+
+Для закрытого распространения без Chrome Web Store:
+
+<Steps>
+  <Step title="Упакуйте расширение">
+    Используйте инструменты разработчика Chrome, чтобы создать файл CRX
+  </Step>
+
+  <Step title="Разместите файлы">
+    Разместите CRX и манифест обновления на вашем сервере
+  </Step>
+
+  <Step title="Настройте клиенты">
+    Используйте Admin console или Group Policy, чтобы указать на ваши размещённые файлы
+  </Step>
+</Steps>
+
+## Управление расширением {#extension-management}
+
+### Политики обновления {#update-policies}
+
+- **Развёртывания в организации**: Chrome автоматически обновляет расширения каждые 5 часов
+- **Закрепление версии**: доступно для принудительно установленных расширений, но не используйте его долго из-за
+  обновлений безопасности
+- **Обновления при самостоятельном размещении**: увеличьте версию в manifest.json и замените размещённые файлы

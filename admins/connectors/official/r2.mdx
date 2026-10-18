@@ -1,0 +1,79 @@
+---
+title: "Cloudflare R2"
+description: "Доступ к файлам из корзин Cloudflare R2"
+---
+
+## Как это работает {#how-it-works}
+
+Коннектор R2 получает все документы из указанной корзины Cloudflare R2. Он поддерживает различные форматы файлов,
+включая PDF, DOC, DOCX, TXT и другие.
+
+Документы обновляются раз в **1** день.
+
+## Настройка {#setting-up}
+
+### Авторизация {#authorization}
+
+<Steps>
+  <Step title="Откройте панель R2">
+    Войдите в панель Cloudflare. Перейдите в «R2» на боковой панели и нажмите «Manage R2 API Tokens».
+
+    <img className="rounded-image" src="/assets/admins/connectors/blob/r2/manageapi.png" alt="Управление API"/>
+  </Step>
+
+  <Step title="Создайте API-токен">
+    Нажмите «Create API token».
+
+    <img className="rounded-image" src="/assets/admins/connectors/blob/r2/newtoken.png" alt="Создание API-токена"/>
+  </Step>
+
+  <Step title="Задайте разрешения">
+    Задайте токену имя (например, «YahontR2Connector»)
+    и выберите подходящие разрешения (только чтение объектов — Object Read).
+
+    <img className="rounded-image" src="/assets/admins/connectors/blob/r2/readonly.png" alt="Только чтение"/>
+  </Step>
+
+  <Step title="Скопируйте ключи и Account ID">
+    Нажмите «Create API Token». На следующем экране сразу скопируйте Access Key ID и Secret Access Key. Затем,
+    чтобы найти Account ID, откройте страницу Overview; Account ID указан в URL в виде последней части.
+
+    <img className="rounded-image" src="/assets/admins/connectors/blob/r2/id.png" alt="Учётные данные R2"/>
+  </Step>
+</Steps>
+
+### Индексирование {#indexing}
+
+<Steps>
+  <Step title="Откройте коннектор R2">
+    Откройте панель администратора и выберите коннектор **R2**.
+  </Step>
+
+  <Step title="Введите учётные данные">
+    На **шаге 1** укажите ваши учётные данные R2 (Access Key ID, Secret Access Key и Account ID).
+
+    <img className="rounded-image" src="/assets/admins/connectors/blob/r2/Onyx1.png" alt="Ввод учётных данных R2"/>
+  </Step>
+
+  <Step title="Сохраните учётные данные">
+    Нажмите «Обновить», чтобы сохранить учётные данные.
+  </Step>
+
+  <Step title="Выберите корзину">
+    На **шаге 2** укажите, какую корзину R2 вы хотите сделать доступной для поиска.
+
+    <img className="rounded-image" src="/assets/admins/connectors/blob/r2/Onyx2.png" alt="Выбор корзины R2"/>
+  </Step>
+
+  <Step title="Запустите индексацию">
+    Нажмите «Подключить», чтобы начать индексацию.
+  </Step>
+</Steps>
+
+## Как устроено хранилище R2 {#understanding-r2-structure}
+
+Cloudflare R2 организует данные в корзины, как Amazon S3.
+В каждой корзине может быть неограниченное число объектов (файлов). Корзину можно представить как корневой каталог,
+а объекты — как файлы в этом каталоге.
+
+Подробнее о структуре R2 читайте в [документации Cloudflare R2](https://developers.cloudflare.com/r2/).

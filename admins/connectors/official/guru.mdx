@@ -1,0 +1,42 @@
+---
+title: "Guru"
+description: "Доступ к карточкам и коллекциям из Guru"
+---
+
+## Как это работает {#how-it-works}
+
+Коннектор Guru загружает все карточки (Cards), к которым у вашего пользователя есть доступ по User Access Token.
+
+Карточки обновляются каждые **10** минут.
+
+## Настройка {#setting-up}
+
+### Авторизация {#authorization}
+
+<Steps>
+  <Step title="Получите токен доступа">
+    Получите User Access Token.
+    Подробности смотрите в руководстве по API Guru [здесь](https://developer.getguru.com/docs/getting-started).
+  </Step>
+</Steps>
+
+<img className="rounded-image" src="/assets/admins/connectors/guru/GuruConnectorAuth.gif" alt="Шаги в панели API Guru для создания User Access Token"/>
+
+### Индексирование {#indexing}
+
+<Steps>
+  <Step title="Откройте коннектор Guru">
+    Откройте панель администратора и выберите коннектор **Guru**
+  </Step>
+
+  <Step title="Введите учётные данные">
+    На **шаге 1** укажите ваш **Username** (скорее всего, это ваш адрес электронной почты)
+    и **Access Token** с предыдущего шага.
+
+    <img className="rounded-image" src="/assets/admins/connectors/guru/GuruConnector.png" alt="Форма учётных данных коннектора Guru в Yahont с именем пользователя и токеном доступа"/>
+  </Step>
+
+  <Step title="Запустите индексацию">
+    Нажмите `Подключить`, чтобы начать индексацию
+  </Step>
+</Steps>

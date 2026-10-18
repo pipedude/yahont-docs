@@ -1,0 +1,113 @@
+---
+title: "File"
+description: "Индексирование файлов с локального или сетевого диска"
+---
+
+## Как это работает {#how-it-works}
+
+Коннектор File индексирует файлы, загруженные пользователями. Сейчас поддерживаются файлы `.txt`, `.pdf`, `.docx`,
+`.pptx`, `.xlsx`, `.csv`, `.md`, `.mdx`, `.conf`, `.log`, `.json`, `.tsv`, `.xml`, `.yml`, `.yaml`, `.eml` и `.epub`.
+Можно также загрузить `.zip` с этими файлами — файлы других типов в архиве игнорируются.
+Есть также необязательная строка метаданных, которая поддерживает ссылки,
+владельцев документа и время обновления в качестве метаданных для поиска Yahont и ответов ИИ.
+
+## Добавление метаданных {#adding-metadata}
+
+Строка метаданных должна находиться в самом начале файла и может иметь один из двух форматов:
+
+- `#ONYX_METADATA={"link": "<LINK>"}`
+- `<!-- ONYX_METADATA={"link": "<LINK>"} -->`
+
+Здесь после ONYX_METADATA= идёт JSON. Допустимые ключи JSON:
+
+- link
+- primary_owners
+- secondary_owners
+- doc_updated_at
+- file_display_name
+
+Также можно включить произвольные пары «ключ — значение», которые будут пониматься как «теги».
+Эти теги затем можно использовать в интерфейсе как фильтр,
+если нужно ограничить поиск или диалог только документами с определёнными тегами.
+
+Например:
+
+```
+#ONYX_METADATA={"link": "https://github.com/pipedude/yahont-ce/blob/main/CONTRIBUTING.md", "primary_owners": ["<PERSON>@example.com", "<PERSON>@example.com"], "secondary_owners": ["support@yahont.ai"], "doc_updated_at": "2023-11-30T13:06:08.589616-08:00", "file_display_name": "Desired File Name!", "tag_of_your_choice": "tag_value"}
+```
+
+Полный пример файла:
+
+```
+#ONYX_METADATA={"link": "https://example.com/captcha", "file_display_name": "Captcha Setup"}
+How to set up captcha
+Follow the example below to set up a captcha
+like you saw when you visited this page!
+By including a captcha, this page is able to
+prevent web scrapers from reading it.
+```
+
+Как видно, есть много веб-страниц и внутренних инструментов, которые нельзя напрямую получить скрейпингом.
+Помимо обработки локальных загрузок файлов, коннектор File предлагается как вариант для таких инструментов,
+у которых может быть API для доступа к содержимому.
+
+Либо, если вы загружаете `.zip` с файлами,
+можно определить файл `.onyx_metadata.json` и поместить его в корень zip-файла.
+Если структура вашего zip-файла выглядит так:
+
+```
+| file1.txt
+| file2.txt
+| .onyx_metadata.json
+```
+
+то ваш файл `.onyx_metadata.json` может выглядеть так:
+
+```json
+[
+  {
+    "filename": "file1.txt",
+    "link": "<LINK_TO_FILE1>",
+    "file_display_name": "<WHAT_YOU_WANT_THE_NAME_OF_FILE1_TO_BE_IN_THE_UI>"},
+    "primary_owners": ["<FILE1_OWNER>"],
+    // this is an arbitrary tag, can be any key/value pair and can be used in the UI as
+    // a filter if you want to constrain your search / conversation to only documents with
+    // this tag attached
+    "status": "<SOME_STATUS>"
+  },
+  {
+    "filename": "file2.txt",
+    "link": "<LINK_TO_FILE2>",
+    "file_display_name": "<WHAT_YOU_WANT_THE_NAME_OF_FILE2_TO_BE_IN_THE_UI>"},
+    "primary_owners": ["<FILE2_OWNER>"],
+    // this is an arbitrary tag, can be any key/value pair and can be used in the UI as
+    // a filter if you want to constrain your search / conversation to only documents with
+    // this tag attached
+    "status": "<SOME_OTHER_STATUS>"
+  }
+]
+```
+
+## Настройка {#setting-up}
+
+### Авторизация {#authorization}
+
+    - Внешние процессы авторизации не требуются.
+    - Администраторы могут загружать файлы и делать их доступными всем
+    - [В РАЗРАБОТКЕ]
+      Администраторы или обычные пользователи смогут загружать файлы через персональные коннекторы и делать их
+      доступными только для себя.
+
+### Индексирование {#indexing}
+
+<Steps>
+  <Step title="Откройте коннектор File">
+    Откройте панель администратора и выберите коннектор **File**.
+  </Step>
+
+  <Step title="Загрузите файл">
+    Выберите файл `.txt` или `.zip` и нажмите
+
+    <img className="rounded-image" src="/assets/admins/connectors/file/FileConnector.png" alt="Коннектор File"/>
+  </Step>
+</Steps>

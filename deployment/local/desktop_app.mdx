@@ -1,0 +1,109 @@
+---
+title: "Десктопное приложение"
+description: "Установка и настройка десктопного приложения Yahont"
+icon: "desktop"
+---
+
+Десктопное приложение Yahont даёт пользователям нативный способ работы с Yahont в Windows, macOS и Linux.
+
+Возможности:
+
+- Быстрый запуск из системного трея или дока
+- Уведомления на рабочем столе
+
+<img className="rounded-image" src="/assets/deployment/onyx_desktop_app.png" alt="Десктопное приложение Yahont"/>
+
+<Info>
+  Десктопное приложение используется для подключения к серверной части Yahont.
+  Пользователям нужен доступ к URL инстанса Yahont. Оно не может подключаться напрямую к локальному бэкенду вывода.
+</Info>
+
+## Загрузка {#download}
+
+Загрузите последнюю версию десктопного приложения Yahont для вашей платформы:
+
+<CardGroup cols={3}>
+  <Card title="Windows" icon="windows" href="https://github.com/onyx-dot-app/onyx/releases/latest/download/Onyx_x64.exe">
+    Скачать для Windows (.exe)
+  </Card>
+
+  <Card title="macOS" icon="apple" href="https://github.com/onyx-dot-app/onyx/releases/latest/download/Onyx_universal.dmg">
+    Скачать для macOS (.dmg)
+  </Card>
+
+  <Card title="Linux" icon="linux" href="https://github.com/onyx-dot-app/onyx/releases/latest/download/Onyx_amd64.deb">
+    Скачать для Linux (.deb)
+  </Card>
+</CardGroup>
+
+<Tip>
+  Дополнительные архитектуры и форматы (.msi, .rpm, .app.tar.gz)
+  доступны на [странице релизов GitHub](https://github.com/onyx-dot-app/onyx/releases/latest).
+</Tip>
+
+## Первый запуск {#first-launch}
+
+**Пользователи с самостоятельным размещением**:
+при первом запуске приложение открывает экран **Настройки** для настройки подключения к вашему инстансу Yahont:
+
+- **URL сервера**: URL вашего инстанса Yahont (например, `https://yahont.yourcompany.com`)
+- **Аутентификация**: войдите настроенным у вас способом аутентификации
+
+URL сервера можно изменить в любое время на экране **Настройки** (`⌘ ,` в macOS, `Ctrl ,` в Windows и Linux).
+
+## Развёртывание в организации {#enterprise-deployment}
+
+Для организаций, внедряющих десктопное приложение в большом масштабе,
+можно заранее настроить URL сервера (и другие параметры),
+чтобы пользователи полностью пропускали запрос **Настройки** при первом запуске.
+Поместите файл `config.json` на каждый компьютер до первого запуска приложения пользователем.
+При запуске Yahont читает файл и подключается напрямую к вашему инстансу; пользователям остаётся только войти.
+
+### Расположение файла конфигурации {#configuration-file-location}
+
+Приложение читает настройки из файла `config.json` по следующему пути:
+
+<Tabs>
+  <Tab title="Windows">
+    ```
+    %APPDATA%\onyx\onyx-desktop\config\config.json
+    ```
+  </Tab>
+
+  <Tab title="macOS">
+    ```
+    ~/Library/Application Support/app.onyx.onyx-desktop/config.json
+    ```
+  </Tab>
+
+  <Tab title="Linux">
+    ```
+    ~/.config/onyx-desktop/config.json
+    # or, if $XDG_CONFIG_HOME is set:
+    $XDG_CONFIG_HOME/onyx-desktop/config.json
+    ```
+  </Tab>
+</Tabs>
+
+Пример `config.json`:
+
+```json
+{
+  "server_url": "https://yahont.yourcompany.com",
+  "window_title": "Onyx"
+}
+```
+
+## Параметры конфигурации {#configuration-options}
+
+| Параметр | Значения | Платформы | Описание |
+|----------|----------|-----------|----------|
+| `server_url` | строка<br />(по умолчанию: `"https://cloud.yahont.ai"`) | Windows, macOS, Linux | Инстанс Yahont, к которому подключается приложение. Обязателен, чтобы приложение пропускало запрос **Настройки** при первом запуске. Завершающий слэш игнорируется. |
+| `window_title` | строка<br />(по умолчанию: `"Onyx"`) | Windows, macOS, Linux | Пользовательский заголовок окна приложения. |
+| `show_menu_bar` | логическое<br />(по умолчанию: `true`) | Windows, Linux | Показывать ли строку меню приложения. Обычно переключается через **Window → Show Menu Bar**, а не настраивается заранее. Игнорируется в macOS, где строкой меню управляет операционная система. |
+| `hide_window_decorations` | логическое<br />(по умолчанию: `false`) | Linux | Скрывает заголовок и границы окна. Обычно переключается через **Window → Hide Window Decorations**. |
+
+<Warning>
+  `config.json` должен быть корректным JSON со значениями правильных типов. Одна недопустимая запись приводит к тому,
+  что приложение отбросит **весь** файл и вернётся к настройкам по умолчанию.
+</Warning>

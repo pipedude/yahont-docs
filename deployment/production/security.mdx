@@ -1,0 +1,307 @@
+---
+title: "Усиление безопасности"
+description: "Закрепление образов, учётные данные, контексты безопасности, сервисные аккаунты и сетевые политики для Yahont в Kubernetes"
+icon: "user-lock"
+---
+
+На этой странице перечислены настройки, которые стоит проверить перед запуском Helm-чарта Yahont в продакшене.
+Проверяйте каждое изменение в тестовой среде, прежде чем применять его.
+
+## Закрепите версию Yahont {#pin-the-onyx-version}
+
+По умолчанию в чарте задано `global.version: "latest"`. Задайте тег релиза:
+
+```yaml values.yaml
+global:
+  version: "v4.8.1"  # Use the release that you tested
+```
+
+Плавающий тег `latest` рискован:
+
+- Новый под может загрузить более новый образ, чем уже работающие поды. Это происходит при увеличении масштаба,
+  освобождении узла или перепланировании.
+- API-сервер выполняет миграции базы данных при запуске.
+  Один новый под может изменить схему под работающими старыми подами.
+- Откат Helm не возвращает схему базы данных.
+
+С закреплённым тегом обновление происходит только когда вы меняете `global.version`. Примечания к релизам см.
+в [журнале изменений](https://github.com/pipedude/yahont-ce/blob/main/CHANGELOG.md).
+
+## Учётные данные {#credentials}
+
+Каждый раздел в `auth` принимает `existingSecret`. Тогда чарт читает ваш Secret и не создаёт свой.
+
+| Раздел | Ключи в Secret | Примечания |
+| --- | --- | --- |
+| `auth.postgresql` | `username`, `password` | Пароль по умолчанию — `postgres`. Замените его. |
+| `auth.redis` | `redis_password` | Пароль по умолчанию — `password`. Замените его. |
+| `auth.objectstorage` | `s3_aws_access_key_id`, `s3_aws_secret_access_key` | С встроенным MinIO также `rootUser` и `rootPassword` с теми же значениями. |
+| `auth.opensearch` | `opensearch_admin_username`, `opensearch_admin_password` | |
+| `auth.userauth` | `user_auth_secret` | Подписывает токены сброса пароля и состояние входа. Без него Yahont не запускается. |
+| `auth.metricsAuth` | `metrics_auth_token` | Защищает `/metrics` на серверах API и MCP. |
+| `auth.smtp` | `smtp_pass` | По умолчанию выключено. |
+
+<Warning>
+  Задайте пароли встроенных сервисов до первой установки.
+  Встроенный OpenSearch читает пароль администратора только при первом запуске,
+  поэтому последующее изменение его не меняет.
+</Warning>
+
+Создайте Secret, затем укажите его чарту:
+
+```bash
+kubectl -n onyx create secret generic onyx-postgres \
+  --from-literal=username=onyx \
+  --from-literal=password="$(openssl rand -hex 24)"
+```
+
+```yaml values.yaml
+auth:
+  postgresql:
+    existingSecret: "onyx-postgres"
+```
+
+### External Secrets Operator {#external-secrets-operator}
+
+Если вы используете [External Secrets Operator](https://external-secrets.io/), чарт может создать один `ExternalSecret`.
+Сначала нужно установить оператор и `SecretStore` или `ClusterSecretStore`.
+
+```yaml values.yaml
+externalSecret:
+  enabled: true
+  refPath: "onyx/app-secrets"  # Secret name in your secret manager
+  secretName: "onyx-app-secrets"
+  secretStoreRef:
+    name: aws-secrets-manager
+    kind: ClusterSecretStore
+
+# Also inject every key of the Secret as an environment variable in backend pods.
+# Use this for secrets that you would otherwise put in configMap.
+extraEnvFromSecret: "onyx-app-secrets"
+
+auth:
+  postgresql:
+    existingSecret: "onyx-app-secrets"
+  redis:
+    existingSecret: "onyx-app-secrets"
+  # Point each other auth section at the same Secret.
+```
+
+Внешний секрет должен содержать каждый ключ, который ожидают карты `auth.*.secretKeys`.
+
+## Контексты безопасности {#security-contexts}
+
+| Компонент | Ключ пода | Ключ контейнера | Пользователь по умолчанию |
+| --- | --- | --- | --- |
+| API-сервер | `api.podSecurityContext` | `api.securityContext` | root (по умолчанию в образе) |
+| Рабочие процессы Celery и beat | `celery_shared.podSecurityContext` | `celery_shared.securityContext` | root (`runAsUser: 0`) |
+| Веб-сервер | `webserver.podSecurityContext` | `webserver.securityContext` | `node` (по умолчанию в образе) |
+| Серверы моделей | `inferenceCapability.podSecurityContext`, `indexCapability.podSecurityContext` | `inferenceCapability.securityContext`, `indexCapability.securityContext` | UID 1001, не root |
+| Боты Slack и Discord | `slackbot.podSecurityContext`, `discordbot.podSecurityContext` | `slackbot.securityContext`, `discordbot.securityContext` | root (по умолчанию в образе) |
+| MCP-сервер | `mcpServer.podSecurityContext` | `mcpServer.securityContext` | root (по умолчанию в образе) |
+
+Эти настройки не меняют пользователя, поэтому применяются при пользователе root по умолчанию:
+
+```yaml values.yaml
+api:
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
+```
+
+Примените те же настройки к остальным компонентам из таблицы.
+
+### Запуск без root {#run-as-non-root}
+
+В образе бэкенда (`onyx-backend`) есть пользователь `onyx` с UID 1001, но образ его не выбирает.
+Без переопределения API-сервер, рабочие процессы Celery, боты и MCP-сервер работают от root.
+
+Чтобы запускать без root, задайте пользователя в контекстах безопасности пода и контейнера:
+
+```yaml values.yaml
+api:
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    runAsGroup: 1001
+    fsGroup: 1001
+
+celery_shared:
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    runAsGroup: 1001
+    fsGroup: 1001
+  securityContext:
+    runAsUser: 1001  # Replaces the default runAsUser: 0
+```
+
+<Warning>
+  Запуск без root не является значением чарта по умолчанию. Проверьте его, прежде чем применять:
+
+  - `customCACerts` и `api.runUpdateCaCertificates` требуют root в API-сервере и рабочих процессах Celery.
+  - Добавляемые вами тома должны быть доступны для записи UID 1001.
+</Warning>
+
+## Сервисные аккаунты {#service-accounts}
+
+Поды Yahont используют ServiceAccount `default` пространства имён. Чтобы это изменить,
+задайте `serviceAccount.create` равным `true` или задайте `serviceAccount.name`.
+
+- При использовании [Craft](/deployment/local/craft_kubernetes)
+  API-сервер и рабочий процесс запланированных задач используют токен своего ServiceAccount для управления
+  подами-песочницами. Оставьте `serviceAccount.automount: true`.
+- Без Craft поды Yahont не обращаются к API Kubernetes. Можно создать отдельный ServiceAccount без токена:
+
+```yaml values.yaml
+# Only when Craft is off
+serviceAccount:
+  create: true
+  automount: false
+```
+
+У Code Interpreter собственный ServiceAccount. Его токен нужен для создания подов-исполнителей.
+
+## Другие значения по умолчанию, которые стоит сохранить {#other-defaults-to-keep}
+
+- `/metrics` возвращает `401`, пока вы не зададите `auth.metricsAuth`. Не задавайте `configMap.DISABLE_METRICS_AUTH` в
+  сети, доступной пользователям.
+- Документация API (`/docs`, `/openapi.json`) отключена. Не задавайте `configMap.ENABLE_PUBLIC_DOCS`, если она вам не нужна.
+
+## Сетевые политики {#network-policies}
+
+Чарт не создаёт NetworkPolicy для подов Yahont. Он создаёт политики только для песочниц:
+- Поды-исполнители Code Interpreter получают политику, запрещающую весь исходящий трафик.
+- Поды-песочницы Craft могут обращаться только к DNS и прокси песочницы.
+
+Пример ниже применяет запрет по умолчанию к пространству имён Yahont, а затем разрешает нужный Yahont трафик.
+
+<Warning>
+  Это пример, а не проверенная политика. Измените его для вашего кластера, прежде чем применять:
+
+  - Ваш CNI должен применять NetworkPolicy.
+  - Измените имена пространств имён, пространство имён ingress-контроллера и адрес API Kubernetes.
+  - Если вы используете внешние сервисы, разрешите их порты (например, `5432` и `6379`).
+  - Пример не охватывает Craft. Craft требует больше правил.
+</Warning>
+
+Каждая разрешающая политика исключает поды-исполнители Code Interpreter с помощью селектора `component`.
+NetworkPolicy складываются, поэтому разрешающее правило, выбирающее поды-исполнители,
+даёт пользовательскому коду доступ к сети.
+
+```yaml onyx-network-policies.yaml
+# 1. Deny all traffic by default.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: onyx
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+# 2. Allow traffic between Onyx pods in the namespace, and DNS.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-namespace-and-dns
+  namespace: onyx
+spec:
+  podSelector:
+    matchExpressions:
+      - key: component
+        operator: NotIn
+        values: [executor, session]
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector: {}
+  egress:
+    - to:
+        - podSelector: {}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+---
+# 3. Allow the ingress controller to reach NGINX, the web server, and the API server.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-controller
+  namespace: onyx
+spec:
+  podSelector:
+    matchExpressions:
+      - key: component
+        operator: NotIn
+        values: [executor, session]
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+---
+# 4. Allow HTTPS to the internet for LLM providers, connectors, and web search.
+#    Block the cloud metadata address.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-https-egress
+  namespace: onyx
+spec:
+  podSelector:
+    matchExpressions:
+      - key: component
+        operator: NotIn
+        values: [executor, session]
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [169.254.169.254/32]
+      ports:
+        - { protocol: TCP, port: 443 }
+---
+# 5. Allow Code Interpreter to reach the Kubernetes API to create executor pods.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-code-interpreter-kube-api
+  namespace: onyx
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: code-interpreter
+    matchExpressions:
+      - key: component
+        operator: NotIn
+        values: [executor, session]
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.1/32  # Your Kubernetes API server address
+      ports:
+        - { protocol: TCP, port: 443 }
+```
+
+Чтобы найти адрес API Kubernetes, выполните `kubectl get endpoints kubernetes -n default`.
+Некоторые кластеры используют порт `6443`.
+
+Политика 3 предполагает ingress-контроллер в пространстве имён `ingress-nginx`.
+Встроенный NGINX (`nginx.enabled` равно `true`)
+работает в пространстве имён Yahont и получает трафик от балансировщика нагрузки. В этом случае измените политику 3,
+чтобы она разрешала адреса балансировщика нагрузки или узлов.

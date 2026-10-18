@@ -1,0 +1,131 @@
+---
+title: "Google Drive — OAuth"
+description: "Настройка OAuth Google Drive для коннектора"
+---
+
+В этом разделе описана настройка коннектора Google Drive с помощью приложения Google с поддержкой OAuth.
+Это может сделать любой (даже без платного Google Workspace)!
+
+Если вы организация с Google Workspace и предпочитаете использовать сервисный аккаунт для доступа к Google Drive, см.
+раздел [здесь](./service_account).
+
+### Авторизация {#authorization}
+
+<Steps>
+  <Step title="Создайте проект Google Cloud">
+    - [https://console.cloud.google.com/projectcreate](https://console.cloud.google.com/projectcreate)
+  </Step>
+
+  <Step title="Включите Google Drive API">
+    - На левой панели откройте **APIs & services**
+    - Перейдите в **Enabled APIs and services**
+    - Вверху нажмите **+ENABLE APIS AND SERVICES**
+    - Найдите **Google Drive API** и нажмите **ENABLE**
+    - Либо откройте эту [ссылку](https://console.cloud.google.com/flows/enableapi?apiid=drive.googleapis.com),
+    выберите свой проект и включите **Google Drive API**
+  </Step>
+
+  <Step title="Включите Admin SDK API">
+    - Снова нажмите **+ENABLE APIS AND SERVICES**.
+    - Найдите **Admin SDK API** и нажмите **ENABLE**
+    - Либо откройте эту [ссылку](https://console.cloud.google.com/flows/enableapi?apiid=admin.googleapis.com),
+    выберите свой проект и включите **Admin SDK API**
+  </Step>
+
+  <Step title="Включите Google Sheets API">
+    - Снова нажмите **+ENABLE APIS AND SERVICES**.
+    - Найдите **Google Sheets API** и нажмите **ENABLE**
+    - Либо откройте эту [ссылку](https://console.cloud.google.com/flows/enableapi?apiid=sheets.googleapis.com),
+    выберите свой проект и включите **Google Sheets API**
+  </Step>
+
+  <Step title="Включите Google Docs API">
+    - Снова нажмите **+ENABLE APIS AND SERVICES**.
+    - Найдите **Google Docs API** и нажмите **ENABLE**
+    - Либо откройте эту [ссылку](https://console.cloud.google.com/flows/enableapi?apiid=docs.googleapis.com),
+    выберите свой проект и включите **Google Docs API**
+
+    <img className="rounded-image" src="/assets/admins/connectors/google_drive/GoogleDriveEnableAPI.png" alt="Включение Google Docs API для проекта в Google Cloud Console"/>
+  </Step>
+
+  <Step title="Настройте экран согласия OAuth">
+    - В разделе **APIs & services** выберите вкладку **OAuth consent screen**
+    - Если у вас нет **Google Organization**, выберите **External** в **User Type**
+    - Назовите приложение Yahont (или как хотите)
+    - В качестве обязательных адресов электронной почты используйте любые на ваш выбор или `support@yahont.ai`,
+    если хотите, чтобы команда Yahont помогала решать проблемы.
+    - Нажмите **SAVE AND CONTINUE**
+  </Step>
+
+  <Step title="Настройте области">
+    - Добавьте область `.../auth/drive.readonly` для `Google Drive API`
+    - Добавьте область `.../auth/drive.metadata.readonly` для `Google Drive API`
+    - Добавьте область `.../auth/admin.directory.user.readonly` для `Admin SDK API`
+    - Добавьте область `.../auth/admin.directory.group.readonly` для `Admin SDK API`
+
+    <img className="rounded-image" src="/assets/admins/connectors/google_drive/GoogleDriveScopes.png" alt="Области экрана согласия OAuth для Google Drive, Admin SDK, Sheets и Docs"/>
+  </Step>
+
+  <Step title="Настройте тестовых пользователей">
+    - Это относится только к пользователям без Google Organization.
+    - Обычно для компании Yahont настраивается как внутреннее приложение, поэтому этот шаг
+    не применяется.
+    - Добавьте хотя бы один адрес электронной почты тестового пользователя. Только аккаунты, добавленные здесь, смогут
+    проходить процесс OAuth для индексации новых документов.
+    - Нажмите **SAVE AND CONTINUE**, проверьте изменения и нажмите **BACK TO DASHBOARD**
+  </Step>
+
+  <Step title="Создайте учётные данные">
+    - Откройте вкладку **Credentials** и выберите **+ CREATE CREDENTIALS** -> **OAuth client ID**
+
+    <img className="rounded-image" src="/assets/admins/connectors/google_drive/GoogleDriveCredential.png" alt="Создание OAuth client ID в Google Cloud Console"/>
+
+    - Выберите **Web application** и задайте имя, например `YahontConnector`
+    - Добавьте **Authorized JavaScript origins**
+    - `http://localhost:3000` при самостоятельном размещении
+    - `https://<INTERNAL_DEPLOYMENT_URL>`, если вы настроили Yahont для рабочего использования
+    - `https://cloud.yahont.ai`, если вы используете сервис Yahont Cloud
+    - Добавьте **Authorized redirect URIs**
+    - `http://localhost:3000/admin/connectors/google-drive/auth/callback` при самостоятельном размещении
+    - `https://<INTERNAL_DEPLOYMENT_URL>/admin/connectors/google-drive/auth/callback`, если вы настроили Yahont для рабочего использования
+    - `https://cloud.yahont.ai/admin/connectors/google-drive/auth/callback`, если вы используете сервис Yahont Cloud
+
+    <img className="rounded-image" src="/assets/admins/connectors/google_drive/DriveCredentials.png" alt="Настройка authorized origins и redirect URIs для клиента Google Drive OAuth"/>
+
+    - Нажмите create, и справа рядом с **Client secret** есть возможность
+    скачать учётные данные в виде JSON. Скачайте JSON для использования на следующем шаге.
+
+    <img className="rounded-image" src="/assets/admins/connectors/google_drive/DriveDownloadCredentials.png" alt="Скачивание учётных данных клиента OAuth в формате JSON из Google Cloud Console"/>
+  </Step>
+</Steps>
+
+### Индексирование {#indexing}
+
+Сначала откройте панель администратора и выберите коннектор Google Drive.
+
+Затем нажмите **Create New**. В разделе **Option 1: OAuth app** загрузите (или вставьте) JSON приложения OAuth,
+скачанный на последнем шаге выше, затем нажмите **Authenticate with Google Drive** и продолжите с аккаунтом,
+который хотите использовать для индексации Google Drive.
+
+<img className="rounded-image" src="/assets/admins/connectors/google_drive/OAuthCredential.png" alt="Окно учётных данных Google Drive в Yahont с вариантами приложения OAuth и сервисного аккаунта"/>
+
+После завершения выберите созданные учётные данные и нажмите кнопку **Continue**, чтобы настроить коннектор!
+
+<Note>
+  JSON приложения сохраняется в созданных учётных данных,
+  поэтому каждые учётные данные OAuth несут собственное приложение.
+  Чтобы добавить больше коннекторов для того же аккаунта, выберите существующие учётные данные из списка,
+  а не создавайте новые. В одном инстансе может быть несколько учётных данных Google Drive, включая те,
+  что используют разные приложения OAuth или разные Google Workspace.
+</Note>
+
+<Note>
+  Если вы планируете использовать синхронизацию прав для этого коннектора, аккаунт, проходящий процесс OAuth,
+  должен иметь роль администратора в Google Workspace с доступом к следующему:
+  - Admin console privileges -> Services -> Drive and Docs -> Settings
+  - Admin API privileges -> Users -> Read
+  - Admin API privileges -> Groups -> Read
+  - Admin API privileges -> Organization Units -> Read
+
+  Это может настроить администратор в панели администратора Google Workspace в разделе Account > Admin roles.
+</Note>

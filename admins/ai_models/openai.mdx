@@ -1,0 +1,26 @@
+---
+title: "OpenAI"
+description: "Настройка языковых моделей OpenAI для Yahont"
+icon: "bolt"
+---
+
+import NavigateToAiModels from "/snippets/navigate-to-ai-models.mdx";
+import StandardAiModelConfigs from "/snippets/standard-ai-model-configs.mdx";
+
+## Руководство {#guide}
+
+<Steps>
+  <NavigateToAiModels />
+
+  <Step title="Настройте поставщика OpenAI">
+    Выберите **OpenAI** среди доступных поставщиков.
+
+    Задайте этой конфигурации **отображаемое имя**.
+
+    Создайте [API-ключ](https://platform.openai.com/api-keys) на панели API OpenAI и вставьте его в поле **API-ключ**.
+
+    <img className="rounded-image" src="/assets/admins/ai_models/openai_config.png" alt="Настройка поставщика OpenAI"/>
+  </Step>
+
+  <StandardAiModelConfigs />
+</Steps>

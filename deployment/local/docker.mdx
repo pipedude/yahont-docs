@@ -1,0 +1,156 @@
+---
+title: "Docker"
+description: "Развёртывание Yahont с помощью Docker Compose"
+icon: "docker"
+---
+
+import DeploymentNextSteps from "/snippets/deployment-next-steps.mdx"
+
+<Tip>
+  Прежде чем начать работу с Docker, ознакомьтесь с [руководством по ресурсам](/deployment/getting_started/resourcing).
+</Tip>
+
+<Note>
+  В этом руководстве описан ручной запуск Docker Compose. Чтобы установить Yahont одной командой,
+  используйте [установщик](/deployment/getting_started/quickstart). Yahont CE работает только в Docker Compose.
+</Note>
+
+## Руководство {#guide}
+
+<Steps>
+  <Step title="Установите необходимое">
+    - [Git](https://git-scm.com/downloads)
+    - [Docker (with compose)](https://docs.docker.com/get-docker/)
+  </Step>
+
+  <Step title="Клонируйте репозиторий Yahont CE">
+    ```bash
+    git clone https://github.com/pipedude/yahont-ce.git
+    ```
+  </Step>
+
+  <Step title="Перейдите к файлам compose">
+    ```bash
+    cd yahont-ce/deployment/docker_compose
+    ```
+  </Step>
+
+  <Step title="Создайте файл .env">
+    ```bash
+    cp env.template .env
+    openssl rand -hex 32   # вставьте результат в USER_AUTH_SECRET в файле .env
+    ```
+
+    Без значения `USER_AUTH_SECRET` сервер API не запустится.
+    Для рабочей установки смените в `.env` также пароли по умолчанию (PostgreSQL, S3, OpenSearch).
+    Подсказки есть в самом файле.
+  </Step>
+
+  <Step title="Запустите Yahont">
+    ```bash
+    docker compose up -d
+    ```
+  </Step>
+</Steps>
+
+В Windows вместо ручного запуска используйте [установщик](/deployment/getting_started/quickstart) или WSL2.
+
+<Note>
+  `docker compose up -d` скачивает готовые образы `yahontai/yahont-ce-backend`,
+  `yahontai/yahont-ce-web` и `yahontai/yahont-ce-model-server` из Docker Hub. Версию задаёт `IMAGE_TAG` в `.env`:
+  по умолчанию `latest`. Чтобы закрепить выпуск, укажите его тег вида `vX.Y.Z`.
+  Образы опубликованы для платформы linux/amd64. Для ARM готовых образов нет.
+
+  Чтобы собрать образы из исходного кода вашей копии репозитория (свои правки, ARM),
+  запускайте `docker compose up -d --build`. Сборка веб-образа требует около 4 ГБ оперативной памяти.
+
+  Обновление: `git pull`, затем `docker compose pull` и `docker compose up -d`. Если вы собирали образы сами,
+  `docker compose pull` заменит их опубликованными, а `docker compose up -d --build` вернёт ваши.
+</Note>
+
+После запуска контейнеров системе нужно пройти процесс инициализации.
+Затем Yahont будет доступен по адресу [localhost:3000](http://localhost:3000).
+Если вы запустили Yahont на удалённом сервере, откройте `http://<адрес сервера>:3000`: `localhost` — это компьютер,
+на котором работают контейнеры. Первый зарегистрированный пользователь становится администратором.
+
+Имя проекта Docker Compose — `yahont`, поэтому контейнеры называются `yahont-<сервис>-1`.
+
+## Режим «Лайт» {#lite-mode}
+
+Режим «Лайт» запускает 5 контейнеров и использует около 1 ГБ памяти в покое. Стандартный режим использует около 7,3 ГБ.
+В режиме «Лайт» нет коннекторов, поиска по документам и знаний агентов.
+Подробное сравнение режимов — в разделе [Обзор развёртывания](/deployment/overview#deployment-modes).
+
+Установщик запускает этот режим параметром `--lite` (`-Lite`).
+Вручную выполните из каталога `deployment/docker_compose`:
+
+```bash
+cp env.template .env
+openssl rand -hex 32   # вставьте результат в USER_AUTH_SECRET в файле .env
+COMPOSE_PROFILES= docker compose -f docker-compose.yml -f docker-compose.lite.yml up -d
+```
+
+Пустое значение `COMPOSE_PROFILES=` в начале команды отключает объектное хранилище из `env.template`:
+в режиме «Лайт» файлы и сессии хранит PostgreSQL.
+
+<Note>
+  Режимы хранят файлы и сессии в разных местах. Чтобы перейти из одного режима в другой,
+  запустите второй под другим именем проекта (`docker compose -p yahont-lite ...`): файлы, загруженные в одном режиме,
+  в другом не видны.
+</Note>
+
+Подробнее о режиме «Лайт» и его переменных — в [конфигурации](/deployment/configuration/configuration#onyx-lite).
+
+## Обновление {#updating}
+
+Выполните из каталога `deployment/docker_compose`:
+
+```bash
+git pull && docker compose pull && docker compose up -d
+```
+
+Если вы собираете образы сами, используйте `git pull && docker compose up -d --build`.
+
+## Логи, состояние и остановка {#logs-and-stop}
+
+Выполните из каталога `deployment/docker_compose`:
+
+```bash
+docker compose ps                  # состояние сервисов
+docker compose logs api_server     # логи сервиса
+docker compose stop                # остановить контейнеры
+```
+
+В стандартном режиме работают сервисы `api_server`, `background`, `web_server`, `inference_model_server`,
+`indexing_model_server`, `relational_db`, `opensearch`, `nginx` и `cache`.
+
+Команда `docker compose down` останавливает и удаляет контейнеры. Данные хранятся в томах Docker и остаются.
+Команда `docker compose down -v` удаляет и тома, то есть все ваши данные.
+
+## Привязка порта к 127.0.0.1 {#bind-to-localhost}
+
+По умолчанию Docker Compose публикует порты 80 и 3000 на всех сетевых интерфейсах.
+Если вы запускаете Yahont на сервере с публичным адресом, не оставляйте их открытыми.
+Чтобы приложение слушало только локальный адрес,
+создайте рядом с `docker-compose.yml` файл `docker-compose.override.yml` (нужен Docker Compose 2.24.4 или новее):
+
+```yaml
+services:
+  nginx:
+    ports: !override
+      - "127.0.0.1:3100:80"
+```
+
+Укажите в `.env` адрес сайта в `WEB_DOMAIN` и перенаправляйте на этот порт прокси.
+
+<Warning>
+  Брандмауэр `ufw` не закрывает порты, которые публикует Docker.
+</Warning>
+
+## Публикация за HTTPS {#https}
+
+В Docker Compose из репозитория нет сертификатов и HTTPS. Поставьте перед Yahont обратный прокси.
+Пошаговая инструкция с Nginx и Let's Encrypt — на странице [Yahont за обратным прокси с
+HTTPS](/deployment/production/reverse_proxy).
+
+<DeploymentNextSteps />

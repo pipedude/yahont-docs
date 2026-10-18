@@ -1,0 +1,162 @@
+---
+title: "Google OAuth"
+description: "Настройка аутентификации через Google OAuth"
+icon: "key"
+---
+
+Настройте Yahont на использование Google OAuth для аутентификации пользователей,
+обеспечив удобный вход через существующие аккаунты Google.
+
+Поставщики Google настраиваются в **Панель администратора** → **Организация** → [Поставщики
+SSO](/deployment/authentication/sso_providers). Переменные окружения и перезапуски не нужны,
+и можно настроить несколько поставщиков и включить их одновременно (см.
+[Доступность в Yahont CE и Enterprise Edition](/deployment/authentication/sso_providers#plan-availability)).
+
+**Предварительные требования:**
+- Доступ к [Google Cloud Console](https://console.cloud.google.com/)
+- Права администратора для настройки приложений OAuth
+
+## Руководство {#guide}
+
+<Steps>
+  <Step title="Создайте проект Google Cloud">
+    Откройте [страницу создания проекта](https://console.cloud.google.com/projectcreate)
+    в Google Cloud Console и заполните обязательные поля.
+
+    <img className="rounded-image" src="/assets/deployment/gcc_project_creation.png" alt="Страница создания проекта в Google Cloud Console"/>
+  </Step>
+
+  <Step title="Включите Google People API">
+    Откройте **APIs & Services** и найдите [Google People
+    API](https://console.cloud.google.com/apis/library/people.googleapis.com).
+
+    Убедитесь, что в верхней панели выбран созданный вами проект, и нажмите **Enable**.
+
+    <img className="rounded-image" src="/assets/deployment/gcc_people_api.png" alt="Страница включения People API в Google Cloud Console"/>
+  </Step>
+
+  <Step title="Создайте платформу Google Auth">
+    Откройте левую боковую панель и перейдите в **APIs & Services** → **OAuth Consent Screen**.
+
+    На странице **Overview** нажмите **Get Started**.
+
+    <img className="rounded-image" src="/assets/deployment/gcc_oauth_consent.png" alt="Страница экрана согласия OAuth в Google Cloud Console"/>
+  </Step>
+
+  <Step title="Настройте проект OAuth и экран согласия">
+    Заполните поля **App name** и **User support email**.
+
+    Выберите **Audience**. Если у вас есть организация Google Workspace, выберите **Internal**. Если нет,
+    выберите **External**.
+
+    <Note>
+      Если вы выбираете **External**,
+      пользователей нужно добавить вручную на вкладке **Audience** в разделе **Test users**.
+    </Note>
+
+    Заполните остальные обязательные поля и завершите настройку.
+  </Step>
+
+  <Step title="Создайте клиент OAuth">
+    Откройте **APIs & Services** → **OAuth Consent Screen** → страницу **Clients**.
+
+    Нажмите **«+ Create Client»** и выберите **Web Application**.
+
+    <img className="rounded-image" src="/assets/deployment/gcc_oauth_client.png" alt="Страница создания клиента OAuth в Google Cloud Console"/>
+  </Step>
+
+  <Step title="Настройте клиент OAuth">
+    **Name:** `Yahont`
+
+    Добавьте источник Yahont в **Authorized JavaScript origins** и добавьте **Authorized redirect URI** с именем,
+    которое вы дадите поставщику в Yahont (slug в нижнем регистре, например `google`):
+
+    При локальном размещении Yahont используйте:
+
+    ```
+    http://localhost:3000
+    http://localhost:3000/api/auth/oidc/YOUR_PROVIDER_NAME/callback
+    ```
+
+    При размещении Yahont на собственном домене используйте:
+
+    ```
+    https://YOUR_YAHONT_DOMAIN.com
+    https://YOUR_YAHONT_DOMAIN.com/api/auth/oidc/YOUR_PROVIDER_NAME/callback
+    ```
+
+    <img className="rounded-image" src="/assets/deployment/gcc_oauth_client_details.png" alt="Страница создания клиента OAuth в Google Cloud Console"/>
+
+    <Tip>
+      Убедитесь, что введённые здесь URI совпадают с URI, по которому вы открываете Yahont!
+    </Tip>
+  </Step>
+
+  <Step title="Сохраните учётные данные OAuth">
+    Нажмите **Create** → **Download JSON**, чтобы сохранить учётные данные клиента OAuth.
+    Либо сохраните **Client ID** и **Client Secret** в менеджере паролей или секретов.
+  </Step>
+
+  <Step title="Добавьте поставщика в Yahont">
+    Откройте **Панель администратора** → **Организация** → [Провайдеры SSO](/deployment/authentication/sso_providers)
+    и нажмите **Add Provider**.
+
+    Выберите тип поставщика **Google**, введите **Name**, который вы использовали в redirect URI,
+    и вставьте **Client ID** и **Client Secret**.
+
+    После создания поставщика в его строке показывается точный **Redirect URI**. Убедитесь,
+    что он совпадает с зарегистрированным в клиенте OAuth, затем войдите через новый вариант на странице входа.
+  </Step>
+</Steps>
+
+## Настройка запрашиваемых областей {#customizing-requested-scopes}
+
+По умолчанию Yahont запрашивает у Google при входе `openid`, `email` и `profile` — минимум,
+необходимый для идентификации пользователя. Переопределять список имеет смысл в первую очередь тогда,
+когда токен доступа, выданный при входе, должен передаваться в вызовы инструментов,
+которым нужен дополнительный доступ к API Google.
+
+Задайте **Scopes** в записи поставщика (**Панель администратора** → **Организация** → **Провайдеры SSO**),
+чтобы переопределить список для каждого поставщика. **Scopes** поставщика имеют приоритет. Если поле пусто,
+применяется переменная окружения всего развёртывания, затем встроенные значения по умолчанию.
+
+Переменная окружения всего развёртывания `GOOGLE_OAUTH_SCOPE_OVERRIDE` задаёт список через запятую:
+
+```bash .env
+GOOGLE_OAUTH_SCOPE_OVERRIDE=openid,email,profile,https://www.googleapis.com/auth/drive.readonly
+```
+
+<Warning>
+  Переопределение **заменяет** области по умолчанию — убедитесь, что `openid`, `email` и `profile` по-прежнему включены,
+  если хотите, чтобы стандартный вход продолжал работать.
+</Warning>
+
+<Note>
+  Все добавляемые здесь области также должны быть включены для клиента OAuth в Google Cloud Console (экран согласия и
+  конфигурация клиента). Yahont меняет только то, что отправляется в запросе авторизации;
+  Google по-прежнему отклоняет области, не настроенные для клиента.
+</Note>
+
+<Note>
+  Эти области применяются только к **входу в приложение** и сквозным потокам OAuth.
+  **Коннекторы** Google Drive и Gmail используют собственные области и поток OAuth, на которые эта настройка не влияет.
+</Note>
+
+## Включение PKCE {#enabling-pkce}
+
+PKCE по умолчанию отключён.
+
+Включите **Enable PKCE** в записи поставщика (**Панель администратора** → **Организация** → **Провайдеры SSO**).
+
+Переменная окружения всего развёртывания `OIDC_PKCE_ENABLED` включает его для всех поставщиков.
+Вход через Google использует тот же маршрут входа, что и OIDC, поэтому здесь тоже применяется переменная с именем OIDC:
+
+```bash .env
+OIDC_PKCE_ENABLED=true
+```
+
+<Warning>
+  `OIDC_PKCE_ENABLED=true` принудительно включает PKCE для каждого поставщика, в том числе для тех,
+  у кого переключатель **Enable PKCE** выключен. Отмените её, если хотите,
+  чтобы источником истины были переключатели отдельных поставщиков.
+</Warning>
