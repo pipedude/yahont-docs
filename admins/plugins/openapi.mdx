@@ -1,0 +1,241 @@
+---
+title: "OpenAPI"
+description: "Превратите REST API со схемой OpenAPI в инструменты для чата и своих агентов"
+icon: "code"
+---
+
+<Note>
+  В Yahont CE 0.2 действия OpenAPI переехали с отдельной страницы администратора в **Панель администратора → Плагины**.
+  См. [Что переехало](/admins/plugins/overview#where-things-moved-in-onyx-5).
+</Note>
+
+Плагин OpenAPI подключает Yahont к REST API. Вы передаёте Yahont схему [OpenAPI](https://swagger.io/specification/),
+и Yahont превращает каждую операцию схемы в инструмент. Агенты читают описания операций и параметры, чтобы решить,
+когда и как вызывать API.
+
+Плагины OpenAPI работают в обычном чате и в своих агентах. В Craft они недоступны.
+Для Craft используйте [MCP-сервер](/admins/plugins/mcp)
+или [собственное приложение Craft](/admins/plugins/craft_apps#custom-apps).
+
+Используйте плагин OpenAPI для внутренних сервисов, например системы заявок или API склада, когда MCP-сервера нет.
+
+## Добавление плагина OpenAPI {#add-an-openapi-plugin}
+
+<Steps>
+  <Step title="Откройте форму OpenAPI">
+    Откройте **Панель администратора → Плагины**, нажмите **Добавить**, затем выберите **OpenAPI**.
+  </Step>
+
+  <Step title="Вставьте схему">
+    Вставьте схему в поле **Определение схемы OpenAPI**. Yahont прочитает схему и покажет её операции под полем.
+
+    <img className="rounded-image" src="/assets/admins/plugins/openapi_add_filled.png" alt="Форма добавления плагина OpenAPI со схемой и операциями, которые нашёл Yahont"/>
+
+    В схеме должны быть:
+
+    - Запись `servers` с базовым адресом API.
+    - `operationId` у каждой операции. Yahont использует его как название инструмента.
+    - `summary` или `description` у каждой операции, чтобы агент знал, когда её использовать.
+
+    API-сервер Yahont должен иметь доступ к адресу сервера.
+  </Step>
+
+  <Step title="Добавьте описания">
+    | Поле | Кто его читает |
+    | --- | --- |
+    | **Описание для людей** | Пользователи, на странице «Плагины» и в редакторе агента. |
+    | **Описание для агентов** | Агент. Объясните, когда использовать API и как выбирать операции. |
+  </Step>
+
+  <Step title="Задайте доступность в обычном чате">
+    Включите **Включить в обычном чате**, чтобы плагин был доступен в чатах без своего агента. Выключите,
+    чтобы плагин был доступен только в тех своих агентах, к которым вы его добавили.
+  </Step>
+
+  <Step title="Настройте аутентификацию">
+    Выберите способ аутентификации. См. [Аутентификация](#authentication).
+  </Step>
+
+  <Step title="Сохраните">
+    Нажмите **Добавить плагин**. Плагин появится на странице «Плагины» с типом **OpenAPI**.
+  </Step>
+</Steps>
+
+## Аутентификация {#authentication}
+
+| Способ | Действие |
+| --- | --- |
+| **Без аутентификации** | Yahont отправляет запросы без учётных данных. |
+| **Свой заголовок авторизации** | Yahont добавляет к каждому запросу один или несколько заданных вами заголовков, например `Authorization: Bearer <token>`. Все пользователи используют эти учётные данные. |
+| **OAuth** | Каждый пользователь входит под своим аккаунтом. Yahont отправляет токен доступа пользователя с каждым запросом. |
+| **Сквозной OAuth** | Yahont отправляет API токен входа пользователя в Yahont. Способ показывается, только если вход в Yahont идёт через OAuth, OIDC или Google OAuth. |
+
+### Свой заголовок авторизации {#custom-authorization-header}
+
+<img className="rounded-image" src="/assets/admins/plugins/openapi_auth_custom_authorization_header.png" alt="Настройки «Свой заголовок авторизации» с полями имени и значения заголовка"/>
+
+Введите имя и значение заголовка. Нажмите кнопку добавления, чтобы отправлять несколько заголовков.
+
+### OAuth {#oauth}
+
+<img className="rounded-image" src="/assets/admins/plugins/openapi_auth_oauth.png" alt="Настройки OAuth: URL авторизации, URL токена, client ID, client secret, scope и PKCE"/>
+
+<Steps>
+  <Step title="Создайте OAuth-клиент у провайдера">
+    Укажите для клиента redirect URI, который показывает Yahont:
+
+    ```text
+    https://<your-yahont-domain>/oauth-config/callback
+    ```
+  </Step>
+
+  <Step title="Введите данные клиента">
+    Введите **URL авторизации**, **URL токена**, **OAuth Client ID** и **OAuth Client Secret**.
+    При необходимости введите **Scope** списком через запятую.
+  </Step>
+
+  <Step title="Настройте PKCE">
+    Включите PKCE, если его требует провайдер. Yahont использует метод `S256`.
+  </Step>
+
+  <Step title="Проверьте подключение">
+    Нажмите **Проверить подключение**, чтобы убедиться, что Yahont может пройти процесс OAuth.
+  </Step>
+</Steps>
+
+Каждый пользователь подключает свой аккаунт на [странице «Плагины»](/overview/core_features/plugins),
+прежде чем агент сможет вызывать API от его имени.
+
+## Подстановки в запросах {#request-placeholders}
+
+Используйте эти подстановки в любом месте схемы, например в адресе сервера, пути или значении параметра по умолчанию.
+Yahont заменяет их значениями текущего запроса в момент вызова.
+
+| Подстановка | Значение |
+| --- | --- |
+| `CHAT_SESSION_ID` | Идентификатор текущей сессии чата |
+| `MESSAGE_ID` | Идентификатор текущего сообщения |
+| `USER_ID` | Идентификатор текущего пользователя |
+| `USER_EMAIL` | Адрес электронной почты текущего пользователя |
+
+## Управление плагином {#manage-the-plugin}
+
+Нажмите на плагин на странице «Плагины», чтобы открыть его настройки.
+
+| Вкладка | Содержимое |
+| --- | --- |
+| **Настройка** | Название, описания, схема и **Включить в обычном чате**. |
+| **Аутентификация** | Способ аутентификации и учётные данные. |
+| **Инструменты** | Операции, которые Yahont нашёл в схеме. |
+
+<img className="rounded-image" src="/assets/admins/plugins/openapi_tab_tools.png" alt="Вкладка «Инструменты» с операциями из схемы OpenAPI"/>
+
+Вкладка **Инструменты** доступна только для чтения. Чтобы добавить, удалить или изменить операцию,
+измените схему на вкладке **Настройка**.
+
+Выключение **Включить в обычном чате** не убирает плагин из своих агентов. Его учётные данные и настройки не меняются.
+Чтобы убрать плагин из всех агентов, удалите его на странице «Плагины».
+
+<Note>
+  В Terraform `onyx_custom_tool.enabled` задаёт **Включить в обычном чате**. Он не меняет подключения к своим агентам.
+</Note>
+
+## Использование плагина в своих агентах {#use-the-plugin-in-custom-agents}
+
+Откройте редактор агента и выберите плагин в разделе **Действия**. См. [Агенты](/admins/agents/overview).
+
+## Пример {#example}
+
+Используйте эту схему, чтобы добавить плагин, который создаёт агентов в Yahont и получает их.
+Замените адрес сервера адресом API вашего Yahont.
+
+```json OpenAPI expandable
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Agents API",
+    "version": "1.0.0",
+    "description": "Minimal OpenAPI schema for creating and fetching agents in Onyx"
+  },
+  "servers": [
+    {
+      "url": "https://your-yahont-domain.com/api"
+    }
+  ],
+  "paths": {
+    "/persona": {
+      "post": {
+        "summary": "Create Agent (Persona)",
+        "operationId": "create_persona",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "description": { "type": "string" },
+                  "document_set_ids": {
+                    "type": "array",
+                    "items": { "type": "integer" }
+                  },
+                  "num_chunks": { "type": "number" },
+                  "is_public": { "type": "boolean" },
+                  "recency_bias": {
+                    "type": "string",
+                    "enum": ["favor_recent", "base_decay", "no_decay", "auto"]
+                  },
+                  "llm_filter_extraction": { "type": "boolean" },
+                  "llm_relevance_filter": { "type": "boolean" },
+                  "tool_ids": {
+                    "type": "array",
+                    "items": { "type": "integer" }
+                  },
+                  "system_prompt": { "type": "string" },
+                  "task_prompt": { "type": "string" },
+                  "datetime_aware": { "type": "boolean" }
+                },
+                "required": [
+                  "name",
+                  "description",
+                  "document_set_ids",
+                  "num_chunks",
+                  "is_public",
+                  "recency_bias",
+                  "llm_filter_extraction",
+                  "llm_relevance_filter",
+                  "tool_ids",
+                  "system_prompt",
+                  "task_prompt",
+                  "datetime_aware"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Created" }
+        }
+      }
+    },
+    "/persona/{persona_id}": {
+      "get": {
+        "summary": "Get Agent (Persona) By ID",
+        "operationId": "get_persona",
+        "parameters": [
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    }
+  }
+}
+```

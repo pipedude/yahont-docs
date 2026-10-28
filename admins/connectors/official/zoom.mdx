@@ -1,0 +1,189 @@
+---
+title: "Zoom"
+description: "Индексируйте расшифровки облачных записей Zoom"
+---
+
+Коннектор Zoom индексирует расшифровку каждой встречи и вебинара с облачной записью. Укажите ID встреч или вебинаров,
+email организаторов или группу Zoom. Если выбрать **Синхронизировать с Zoom**, каждая расшифровка видна только тем,
+кто может смотреть запись в Zoom.
+
+## Перед началом {#before-you-begin}
+
+Вам понадобятся:
+
+- Учётная запись администратора Yahont.
+- Аккаунт Zoom с тарифом **Pro** или выше и пользователь Zoom, который может создавать приложения в App Marketplace:
+  владелец аккаунта или администратор с правом **Server-to-Server OAuth app**.
+- Включённая **Audio transcript** в настройках облачной записи Zoom.
+  Zoom создаёт расшифровку только для записей, сделанных после включения.
+- Дополнение **Webinar**, если вы индексируете вебинары.
+- Для [синхронизации прав](#permission-sync) — Yahont Enterprise Edition.
+
+## Создание приложения Zoom {#create-a-zoom-app}
+
+<Steps>
+  <Step title="Создайте приложение Server-to-Server OAuth">
+    Войдите на [marketplace.zoom.us](https://marketplace.zoom.us) и откройте **Develop → Build App**.
+    Выберите **Server to Server OAuth App** и задайте название, например «Yahont».
+
+    <img className="rounded-image" src="/assets/admins/connectors/zoom/build_app.png" alt="Выбор типа приложения в Zoom, один из вариантов — Server to Server OAuth App"/>
+  </Step>
+
+  <Step title="Скопируйте учётные данные">
+    На странице **App Credentials** скопируйте **Account ID**, **Client ID** и **Client Secret**. Yahont нужны все три.
+
+    <img className="rounded-image" src="/assets/admins/connectors/zoom/app_credentials.png" alt="Страница App Credentials с Account ID, Client ID и Client Secret"/>
+  </Step>
+
+  <Step title="Заполните вкладку Information">
+    Введите краткое описание, название вашей компании и контакт разработчика. Без них Zoom не активирует приложение.
+  </Step>
+
+  <Step title="Добавьте scope">
+    На вкладке **Scopes** выберите **Add Scopes**. Найдите каждый scope из списка ниже,
+    отметьте его и выберите **Done**.
+
+    <img className="rounded-image" src="/assets/admins/connectors/zoom/add_scopes.png" alt="Окно Add Scopes, отфильтрованное по scope cloud_recording:read"/>
+
+    Добавьте эти scope:
+
+    - `cloud_recording:read:list_user_recordings:admin`
+    - `cloud_recording:read:list_recording_files:admin`
+    - `user:read:list_users:admin`
+    - `group:read:list_members:admin`
+    - `meeting:read:meeting:admin`
+    - `meeting:read:past_meeting:admin`
+    - `meeting:read:list_past_instances:admin`
+    - `webinar:read:webinar:admin`
+    - `webinar:read:list_past_instances:admin`
+
+    Для **Синхронизировать с Zoom** добавьте также:
+
+    - `cloud_recording:read:recording_settings:admin`
+    - `cloud_recording:read:list_recording_registrants:admin`
+    - `user:read:user:admin`
+    - `user:read:settings:admin`
+
+    Все они только для чтения. Yahont никогда ничего не меняет в Zoom.
+  </Step>
+
+  <Step title="Активируйте приложение">
+    На вкладке **Activation** выберите **Activate your app**.
+
+    <img className="rounded-image" src="/assets/admins/connectors/zoom/activation.png" alt="Вкладка Activation: приложение активировано в аккаунте"/>
+  </Step>
+</Steps>
+
+## Настройка коннектора в Yahont {#configure-the-connector-in-onyx}
+
+<Steps>
+  <Step title="Откройте коннектор Zoom">
+    Откройте **Панель администратора → Добавить коннектор** и выберите **Zoom** в разделе **Встречи**.
+  </Step>
+
+  <Step title="Выберите тариф Zoom">
+    В поле **Тариф Zoom** выберите `pro` для аккаунта Pro или `business_plus` для Business, Education,
+    Enterprise или Partner. Это задаёт, как часто Yahont может обращаться к Zoom.
+  </Step>
+
+  <Step title="Добавьте учётные данные">
+    В разделе **Учётная запись для аутентификации** добавьте новый аккаунт Zoom. Введите **Zoom Account ID**,
+    **Zoom Client ID** и **Zoom Client Secret** из вашего приложения Zoom, затем нажмите **Создать**.
+
+    <img className="rounded-image" src="/assets/admins/connectors/zoom/onyx_credential.png" alt="Страница настройки Zoom в Yahont с полем «Тариф Zoom» и формой нового аккаунта Zoom"/>
+  </Step>
+
+  <Step title="Проверьте подключение">
+    Нажмите **Запустить проверки**. Yahont проверит учётные данные и scope в Zoom и сообщит обо всём, что Zoom отклонит.
+  </Step>
+
+  <Step title="Выберите, что индексировать">
+    В разделе **Содержимое коннектора** заполните любое из полей:
+
+    - **ID встреч** и **ID вебинаров**: номера из приглашения на сеанс, по одному в каждой записи.
+    - **Email организаторов**: все записи, которые проводят эти люди.
+    - **ID группы Zoom**: все записи, которые проводят участники группы.
+    ID находится в **User Management → Groups** на веб-портале Zoom.
+
+    Выключите **Включать встречи** или **Включать вебинары**, чтобы исключить один из типов сеансов.
+
+    <img className="rounded-image" src="/assets/admins/connectors/zoom/onyx_content.png" alt="Раздел «Содержимое коннектора» на странице настройки Zoom"/>
+  </Step>
+
+  <Step title="Выберите, кто видит расшифровки">
+    В разделе **Настройки коннектора** задайте название коннектора и **Доступ к документам**:
+
+    - **Все в вашей организации**: каждый пользователь Yahont видит каждую расшифровку.
+    - **Определённые группы**: только указанные вами группы Yahont.
+    - **Синхронизировать с Zoom**: каждая расшифровка видна тем, кто может смотреть запись в Zoom.
+    См. [Синхронизация прав](#permission-sync).
+
+    <img className="rounded-image" src="/assets/admins/connectors/zoom/onyx_access.png" alt="Варианты доступа к документам на странице настройки Zoom"/>
+  </Step>
+
+  <Step title="Задайте дату начала и создайте коннектор">
+    В разделе **Расписание** задайте **Индексировать документы после**.
+    Без даты первый запуск читает всю историю записей, и это может занять много времени.
+    Затем нажмите **Создать коннектор**.
+  </Step>
+</Steps>
+
+## Синхронизация прав {#permission-sync}
+
+С **Синхронизировать с Zoom** Yahont читает настройку **Link access** каждой записи в Zoom и выдаёт расшифровку тем же
+людям. Владелец записи всегда её видит.
+
+<img className="rounded-image" src="/assets/admins/connectors/zoom/link_access.png" alt="Окно Share облачной записи Zoom с настройкой Link access"/>
+
+| Link access в Zoom                       | Кто видит расшифровку в Yahont                          |
+| ---------------------------------------- | ------------------------------------------------------- |
+| Private to me                            | Владелец                                                |
+| Only people with access                  | Владелец. API Zoom не отдаёт этот список                |
+| Signed-in users in my account            | Все                                                     |
+| Signed-in users from specific domains    | Пользователи с адресами электронной почты в этих доменах |
+| Anyone with the link                     | Все                                                     |
+
+Люди, которые зарегистрировались на просмотр записи, видят её расшифровку в любом случае.
+Yahont перечитывает настройки каждые 6 часов.
+
+<Note>
+  Чтобы ограничить каждую расшифровку её владельцем вместо **Все**,
+  выключите **Считать доступ по ссылке публичным** в настройках коннектора.
+</Note>
+
+## Устранение неполадок {#troubleshooting}
+
+<AccordionGroup>
+  <Accordion title="Yahont не может подключиться к Zoom">
+    В ошибке сказано, что Zoom отказался выдать токен. Либо приложение не активировано,
+    либо одно из трёх значений неверно. Активируйте приложение на вкладке **Activation**,
+    затем снова скопируйте Account ID, Client ID и Client Secret.
+  </Accordion>
+
+  <Accordion title="Проверка подключения сообщает об отсутствующем scope">
+    В ошибке указан scope, который отклонил Zoom.
+    Добавьте этот scope на вкладке **Scopes** приложения и повторите проверку.
+  </Accordion>
+
+  <Accordion title="Вебинары не индексируются">
+    У организатора нет дополнения Webinar, поэтому Zoom отклоняет все запросы по вебинарам.
+    Назначьте дополнение в Zoom или выключите **Включать вебинары**.
+  </Accordion>
+
+  <Accordion title="Email организатора указан как ошибка индексации">
+    Yahont не нашёл активного пользователя Zoom с этим email. Проверьте написание и то,
+    что пользователь всё ещё активен в Zoom. Деактивированный или удалённый пользователь не подходит.
+  </Accordion>
+
+  <Accordion title="Запись есть в Zoom, но её нет в Yahont">
+    У записи нет аудиорасшифровки, или Zoom ещё её обрабатывает. Включите **Audio transcript** в настройках записи Zoom:
+    расшифровка создаётся только для записей, сделанных после этого.
+  </Accordion>
+
+  <Accordion title="Коллега не видит расшифровку, к которой ему открыт доступ в Zoom">
+    Запись использует **Only people with access**. API Zoom не отдаёт этот список,
+    поэтому Yahont выдаёт доступ только владельцу.
+    Откройте запись для своего аккаунта или домена либо задайте в настройке коннектора **Доступ к документам** значение
+    **Все в вашей организации**.
+  </Accordion>
+</AccordionGroup>

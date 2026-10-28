@@ -580,8 +580,6 @@ LANGFUSE_BASE_URL="https://cloud.langfuse.com" # Or "https://us.cloud.langfuse.c
 
     `OAUTH_GOOGLE_DRIVE_CLIENT_SECRET`: секрет клиента OAuth Google Drive
 
-    `MAX_DRIVE_WORKERS`: максимум рабочих процессов Google Drive
-
     `GOOGLE_DRIVE_CONNECTOR_SIZE_THRESHOLD`: порог размера файла для Google Drive
 
     **Коннектор SharePoint**
@@ -676,13 +674,30 @@ LANGFUSE_BASE_URL="https://cloud.langfuse.com" # Or "https://us.cloud.langfuse.c
 
     `S3_FILE_STORE_PREFIX`: префикс S3 для файлового хранилища
 
-    `S3_ENDPOINT_URL`: URL конечной точки S3 (для встроенного хранилища и другого S3-совместимого хранилища)
+    `S3_ENDPOINT_URL`: URL конечной точки S3.
+    `http://object-store:8333` для встроенного объектного хранилища или адрес другого S3-совместимого сервиса.
 
     `S3_VERIFY_SSL`: проверять SSL для соединений с S3
 
-    `S3_AWS_ACCESS_KEY_ID`: ID ключа доступа AWS для S3
+    `S3_AWS_ACCESS_KEY_ID`: ID ключа доступа AWS для S3.
+    Встроенное объектное хранилище использует его как ключ администратора.
 
     `S3_AWS_SECRET_ACCESS_KEY`: секретный ключ доступа AWS для S3
+
+    `S3_LEGACY_ENDPOINT_URL`: встроенный MinIO прежних выпусков, `http://minio:9000`,
+    на время [перехода на объектное хранилище](/admins/advanced_configs/object_store_migration).
+    Записи попадают в оба хранилища, а чтение при промахе обращается к MinIO. Не задавайте при внешнем хранилище.
+
+    `S3_LEGACY_AWS_ACCESS_KEY_ID` / `S3_LEGACY_AWS_SECRET_ACCESS_KEY`: ключи старого хранилища,
+    если они отличаются от пары `S3_AWS_*`.
+
+    `LEGACY_COPY_SETTLE_SECONDS`: копирование завершается,
+    когда проход ничего не скопировал и с его начала прошло столько времени. По умолчанию `600`.
+
+    `LEGACY_COPY_WORKERS`: число параллельных копирований. По умолчанию `16`.
+
+    `MINIO_REPLICAS`: только для Docker Compose. `0` останавливает встроенный MinIO и `object-store-copy`.
+    По умолчанию `1`. Установке, обновлённой с выпуска до `v5.0.0`, нужно `1`, пока вы не выведете MinIO из работы.
 
     **Google Cloud Storage** (`FILE_STORE_BACKEND=gcs`)
 

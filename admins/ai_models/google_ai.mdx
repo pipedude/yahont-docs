@@ -10,10 +10,32 @@ import StandardAiModelConfigs from "/snippets/standard-ai-model-configs.mdx";
 
 В этом руководстве описана настройка языковых моделей Google Vertex AI для использования с Yahont.
 
+О моделях эмбеддинга Google для поиска читайте в разделе [Эмбеддинги
+Google](/admins/advanced_configs/search_configs#google-embeddings).
+Развёртывание GKE и настройка IAM ниже тоже относятся к эмбеддингам: выдайте доступ серверу API и каждому воркеру,
+который выполняет запросы эмбеддингов.
+
 <Note>
   Google Vertex AI и Google AI Studio предоставляют одни и те же модели.
   Однако у Vertex AI есть функции корпоративного уровня, которые могут пригодиться вашей организации.
 </Note>
+
+## Способы аутентификации {#authentication-methods}
+
+Yahont поддерживает два способа аутентификации в Google Vertex AI:
+
+- **JSON сервисного аккаунта** — загрузите скачанный файл ключа сервисного аккаунта. Подходит для Yahont, развёрнутого
+  как внутри Google Cloud, так и вне его, и это основной вариант, описанный в руководстве ниже.
+- **Workload Identity (GKE)** — аутентификация по окружным учётным данным вашего кластера GKE, без создания и
+  хранения файла ключа. См. [Workload Identity (GKE)](#workload-identity-gke) ниже.
+
+<Warning>
+  Отдельный ключ API Vertex AI (иногда его называют ключом Vertex Express Mode) **не** поддерживается.
+  Провайдер Vertex AI в Yahont принимает только учётные данные JSON сервисного аккаунта или Workload Identity —
+  подробности и альтернативу см. в [FAQ](#faq) ниже.
+</Warning>
+
+## JSON сервисного аккаунта {#service-account-json}
 
 <Steps>
   <Step title="Создайте сервисный аккаунт для Yahont">
@@ -44,10 +66,279 @@ import StandardAiModelConfigs from "/snippets/standard-ai-model-configs.mdx";
 
     Задайте этой конфигурации **отображаемое имя**.
 
-    Загрузите свой ключ JSON в поле **Файл учётных данных**.
+    В поле **Метод аутентификации** выберите **JSON сервисного аккаунта** и загрузите свой ключ JSON в поле **Файл
+    учётных данных**.
 
-    При необходимости укажите **местоположение**.
+    При необходимости укажите **регион**.
   </Step>
 
   <StandardAiModelConfigs />
 </Steps>
+
+## Workload Identity (GKE) {#workload-identity-gke}
+
+Для Yahont, развёрнутого в GKE,
+можно аутентифицироваться в Vertex AI через [GKE Workload Identity
+Federation](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity).
+При таком способе Yahont автоматически подхватывает окружные учётные данные GCP пода (через [Application Default
+Credentials](https://cloud.google.com/docs/authentication/application-default-credentials) Google),
+и файл ключа никогда не создаётся и не хранится.
+
+### Предварительные требования {#prerequisites}
+
+- Yahont уже развёрнут в GKE.
+- В проекте, где вы будете использовать Vertex AI, включена оплата.
+- Для примеров CLI аутентифицируйте [Google Cloud CLI](https://cloud.google.com/sdk/docs/install)
+  и настройте [`kubectl`](https://kubernetes.io/docs/tasks/tools/) для вашего кластера Yahont.
+  Администратору развёртывания нужно право включать API и выдавать роли IAM;
+  права на кластер или сервисный аккаунт Kubernetes нужны только при изменении этих настроек.
+
+<Note>
+  Первые два шага — единоразовая настройка развёртывания.
+  Если поды Yahont уже используют Workload Identity и имеют доступ к Vertex AI,
+  переходите к шагу **Откройте «Языковые модели»**.
+  Способу JSON сервисного аккаунта выше эти изменения Kubernetes не нужны.
+</Note>
+
+<Steps>
+  <Step title="Проверьте, что Workload Identity включён">
+    **Autopilot:** Workload Identity Federation для GKE уже включён.
+
+    **Standard:** откройте [страницу кластеров GKE](https://console.cloud.google.com/kubernetes/list),
+    выберите свой кластер и откройте **Details → Security**. **Workload Identity** должен показывать **Enabled**,
+    с пространством имён `PROJECT_ID.svc.id.goog`, где используется ID вашего проекта GKE.
+
+    <img className="rounded-image" src="/assets/admins/ai_models/vertex_gke_workload_identity.png" alt="Сведения о кластере GKE: Workload Identity включён, пространство имён Workload Identity скрыто"/>
+
+    Для кластеров Standard в разделе **Nodes** откройте каждый пул узлов, на котором работает Yahont.
+    Его **Security → GKE Metadata Server** тоже должен показывать **Enabled**.
+
+    <img className="rounded-image" src="/assets/admins/ai_models/vertex_gke_metadata_server.png" alt="Настройки безопасности пула узлов GKE: GKE Metadata Server включён, сервисный аккаунт узла скрыт"/>
+
+    <Accordion title="Если Workload Identity или metadata server выключен">
+      В **Details → Security** измените **Workload Identity**, выберите **Enable Workload Identity** и сохраните.
+      Для каждого пула узлов Yahont нажмите **Edit → Security**, выберите **Enable GKE Metadata Server** и сохраните.
+      Включение Workload Identity на кластере не включает его на существующих пулах узлов.
+
+      Эквивалентные команды:
+
+      ```bash
+      export GKE_PROJECT_ID="my-project"
+      export CLUSTER_NAME="my-onyx-cluster"
+      export CLUSTER_LOCATION="us-central1"
+
+      gcloud container clusters update "$CLUSTER_NAME" \
+        --location "$CLUSTER_LOCATION" --project "$GKE_PROJECT_ID" \
+        --workload-pool "${GKE_PROJECT_ID}.svc.id.goog"
+
+      gcloud container node-pools update NODE_POOL_NAME \
+        --cluster "$CLUSTER_NAME" --location "$CLUSTER_LOCATION" \
+        --project "$GKE_PROJECT_ID" --workload-metadata GKE_METADATA
+      ```
+
+      Для регионального кластера укажите его регион, для зонального — его зону.
+      Замените `NODE_POOL_NAME` и повторите для каждого пула узлов, на котором работает Yahont.
+
+      <Warning>
+        Обновление пула узлов меняет то, как все его рабочие нагрузки получают учётные данные Google Cloud.
+        Перед изменением пула проверьте рабочие нагрузки, которые полагаются на сервисный аккаунт узла,
+        или перенесите Yahont в новый пул с включённым Workload Identity.
+      </Warning>
+    </Accordion>
+  </Step>
+
+  <Step title="Дайте идентичности пода Yahont доступ к Vertex AI">
+    Включите [API Vertex AI](https://console.cloud.google.com/apis/library/aiplatform.googleapis.com) в проекте,
+    где вы будете использовать модели.
+
+    Используйте сервисный аккаунт Kubernetes, уже назначенный серверу API Yahont и воркерам, которые вызывают модели.
+    Чтобы найти его, замените `onyx` на ваше пространство имён:
+
+    ```bash
+    kubectl get pods --namespace onyx \
+      -o custom-columns=NAME:.metadata.name,SERVICE_ACCOUNT:.spec.serviceAccountName
+    ```
+
+    Выдайте роль [**Agent Platform
+    User**](https://cloud.google.com/iam/docs/roles-permissions/aiplatform#roles_aiplatform.user)
+    (`roles/aiplatform.user`, раньше **Vertex AI User**)
+    в проекте Vertex AI [субъекту Workload
+    Identity](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity#configure_authorization_and_principals)
+    этого аккаунта. Так доступ выдаётся напрямую идентичности пода,
+    без создания сервисного аккаунта Google Cloud или JSON-ключа.
+
+    Если аккаунт Kubernetes уже связан с сервисным аккаунтом Google Cloud,
+    выдайте роль этому аккаунту Google Cloud и сохраните существующую связь.
+    Повторите выдачу для каждой отдельной идентичности, которую используют сервер API и воркеры.
+
+    <Accordion title="Выдать доступ напрямую с помощью gcloud">
+      Замените эти примеры значений. `GKE_PROJECT_ID` — проект кластера; `VERTEX_PROJECT_ID` — проект,
+      где включён Vertex AI. Они могут совпадать. Helm-чарт использует сервисный аккаунт Kubernetes `default`,
+      когда `serviceAccount.create` равен `false`, а `serviceAccount.name` пуст; используйте аккаунт,
+      который показан на ваших работающих подах.
+
+      ```bash
+      export GKE_PROJECT_ID="my-project"
+      export VERTEX_PROJECT_ID="$GKE_PROJECT_ID"
+      export NAMESPACE="onyx"
+      export KSA_NAME="default"
+      export GKE_PROJECT_NUMBER="$(gcloud projects describe "$GKE_PROJECT_ID" --format='value(projectNumber)')"
+      export WORKLOAD_POOL="projects/${GKE_PROJECT_NUMBER}/locations/global/workloadIdentityPools/${GKE_PROJECT_ID}.svc.id.goog"
+      export KSA_PRINCIPAL="principal://iam.googleapis.com/${WORKLOAD_POOL}/subject/ns/${NAMESPACE}/sa/${KSA_NAME}"
+
+      gcloud services enable aiplatform.googleapis.com --project "$VERTEX_PROJECT_ID"
+
+      gcloud projects add-iam-policy-binding "$VERTEX_PROJECT_ID" \
+        --member "$KSA_PRINCIPAL" \
+        --role roles/aiplatform.user --condition=None
+      ```
+    </Accordion>
+
+    <Accordion title="Вариант: связанный сервисный аккаунт Google Cloud">
+      Имперсонация сервисного аккаунта — ещё один поддерживаемый вариант. Используйте его,
+      если ваше развёртывание уже использует связанный сервисный аккаунт Google Cloud или этого требует ваша
+      организация. Привязка и аннотация ниже обязательны для имперсонации; для прямого доступа они не нужны.
+
+      Проверьте, есть ли существующая связь:
+
+      ```bash
+      kubectl get serviceaccount KSA_NAME --namespace NAMESPACE \
+        -o jsonpath='{.metadata.annotations.iam\.gke\.io/gcp-service-account}'
+      ```
+
+      Замените `KSA_NAME` и `NAMESPACE`. Если вернулся адрес электронной почты, используйте этот аккаунт,
+      а не заменяйте его связь.
+      Иначе откройте [страницу сервисных аккаунтов](https://console.cloud.google.com/iam-admin/serviceaccounts)
+      и создайте аккаунт `onyx-vertex-ai`, не создавая JSON-ключ.
+
+      Задайте значения ниже под ваше развёртывание. Для существующего аккаунта задайте в `GSA_EMAIL` вернувшийся адрес,
+      а в `GSA_PROJECT_ID` — проект, которому принадлежит этот аккаунт.
+
+      ```bash
+      export GKE_PROJECT_ID="my-project"
+      export VERTEX_PROJECT_ID="$GKE_PROJECT_ID"
+      export GSA_PROJECT_ID="$GKE_PROJECT_ID"
+      export GSA_EMAIL="onyx-vertex-ai@${GSA_PROJECT_ID}.iam.gserviceaccount.com"
+      export NAMESPACE="onyx"
+      export KSA_NAME="default"
+
+      gcloud services enable aiplatform.googleapis.com --project "$VERTEX_PROJECT_ID"
+      gcloud services enable iamcredentials.googleapis.com --project "$GSA_PROJECT_ID"
+
+      gcloud projects add-iam-policy-binding "$VERTEX_PROJECT_ID" \
+        --member "serviceAccount:${GSA_EMAIL}" \
+        --role roles/aiplatform.user --condition=None
+
+      gcloud iam service-accounts add-iam-policy-binding "$GSA_EMAIL" \
+        --project "$GSA_PROJECT_ID" --role roles/iam.workloadIdentityUser \
+        --member "serviceAccount:${GKE_PROJECT_ID}.svc.id.goog[${NAMESPACE}/${KSA_NAME}]"
+
+      kubectl annotate serviceaccount "$KSA_NAME" --namespace "$NAMESPACE" \
+        "iam.gke.io/gcp-service-account=${GSA_EMAIL}" --overwrite
+      ```
+
+      Для этого способа нужны и привязка IAM, и аннотация Kubernetes.
+      Повторите их для каждого отдельного аккаунта Kubernetes, который используют сервер API и воркеры.
+      Аккаунту Google Cloud также нужны права на другие сервисы Google Cloud, которые используют эти поды,
+      например Cloud Storage. Сервисный аккаунт пула узлов — отдельная идентичность узла.
+
+      Если аккаунт Kubernetes создаёт Helm, сохраните аннотацию в значениях Helm:
+
+      ```yaml
+      serviceAccount:
+        create: true
+        name: onyx
+        annotations:
+          iam.gke.io/gcp-service-account: onyx-vertex-ai@my-project.iam.gserviceaccount.com
+      ```
+
+      Для этого примера используйте в привязке `KSA_NAME="onyx"`. Если вы меняете аккаунт, назначенный подам,
+      примените значения Helm и перезапустите сервер API и воркеры.
+      Поды кластера Standard должны работать на пулах узлов с включённым GKE Metadata Server. См.
+      [руководство Google по связыванию сервисных
+      аккаунтов](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity#kubernetes-sa-to-iam).
+    </Accordion>
+  </Step>
+
+  <NavigateToAiModels />
+
+  <Step title="Настройте Google Vertex AI">
+    Выберите **Google Cloud Vertex AI** среди доступных поставщиков.
+
+    Задайте этой конфигурации **отображаемое имя**.
+
+    В поле **Метод аутентификации** выберите **Workload Identity (GKE)**.
+
+    <img className="rounded-image" src="/assets/admins/ai_models/vertex_auth_method_dropdown.png" alt="Выпадающий список «Метод аутентификации» с выбранным и выделенным Workload Identity (GKE)"/>
+
+    Введите **ID проекта GCP**, где включён Vertex AI. Он обязателен,
+    потому что Application Default Credentials не могут надёжно определить целевой проект при имперсонации сервисного
+    аккаунта.
+
+    Задайте в **Регион Google Cloud** [расположение,
+    которое поддерживают ваши модели](https://cloud.google.com/vertex-ai/generative-ai/docs/learn/locations).
+    По умолчанию это `global`; оно не зависит от расположения вашего кластера GKE.
+
+    <img className="rounded-image" src="/assets/admins/ai_models/vertex_workload_identity_selected.png" alt="Выбран Workload Identity (GKE): показаны уведомление об окружных учётных данных и поле «ID проекта GCP»"/>
+
+    Файл учётных данных не нужен. Выберите модели и настройте доступ поставщика ниже, затем нажмите **Подключить**.
+  </Step>
+
+  <StandardAiModelConfigs />
+
+  <Step title="Проверьте подключение">
+    Начните чат с одной из моделей этого поставщика и отправьте сообщение. Успешный ответ подтверждает,
+    что Yahont может получить учётные данные и вызвать Vertex AI.
+
+    <Accordion title="Если подключение не удаётся">
+      Если аутентификация не проходит,
+      проверьте идентичность работающего пода сервера API и metadata server его пула узлов.
+      Для прямого доступа проверьте выдачу IAM субъекту Kubernetes.
+      Для имперсонации сервисного аккаунта проверьте аннотацию `iam.gke.io/gcp-service-account` и привязку
+      `roles/iam.workloadIdentityUser`. Ошибка прав также может означать,
+      что `roles/aiplatform.user` выдана в другом проекте, чем **ID проекта GCP** в Yahont,
+      или что API Vertex AI там выключен. Подождите несколько минут, чтобы новые разрешения IAM распространились,
+      и повторите попытку.
+    </Accordion>
+  </Step>
+</Steps>
+
+## FAQ {#faq}
+
+### Нужно ли Yahont работать в Google Cloud или GKE, чтобы использовать Vertex AI? {#does-onyx-need-to-run-on-google-cloud-or-gke-to-use-vertex-ai}
+
+Нет. К Vertex AI обращаются через API Google Cloud,
+и Yahont может вызывать эти API из другого облака или локального развёртывания с помощью **JSON сервисного аккаунта**,
+при наличии нужных прав и сетевого доступа.
+
+Шаги GKE выше относятся к учётным данным, которые metadata server GKE автоматически передаёт подам Yahont.
+Удалённый доступ к кластеру GKE через `kubectl` не даёт внешнему развёртыванию Yahont эти учётные данные пода.
+
+Вариант **Workload Identity (GKE)** в Yahont внутри использует Application Default Credentials.
+Google также поддерживает [Workload Identity Federation для рабочих нагрузок вне Google
+Cloud](https://cloud.google.com/iam/docs/workload-identity-federation-with-other-clouds). Это отдельная настройка,
+которая делает учётные данные доступными серверу API и воркерам Yahont; она выходит за рамки этого руководства по GKE.
+
+### Можно ли использовать ключ API Vertex AI вместо сервисного аккаунта? {#can-i-use-a-vertex-ai-api-key-instead-of-a-service-account}
+
+Нет.
+Сегодня провайдер Vertex AI в Yahont поддерживает только **JSON сервисного аккаунта** или **Workload Identity (GKE)** —
+отдельный ключ API Vertex AI (Vertex Express Mode) не принимается.
+
+Если вы хотите аутентифицироваться обычным ключом API,
+можно вместо этого добавить провайдера LLM **Custom** с названием провайдера `gemini`,
+который работает через Gemini Developer API [Google AI Studio](https://aistudio.google.com/) по ключу API. См.
+руководство [Собственный провайдер инференса](/admins/ai_models/custom_inference_provider).
+
+<Note>
+  Google AI Studio — отдельный продукт, не Vertex AI, с другими условиями оплаты и обработки данных.
+  Ключи API AI Studio не взаимозаменяемы с учётными данными Vertex AI.
+</Note>
+
+<Warning>
+  При такой настройке используйте тип провайдера **Custom** с названием провайдера `gemini`,
+  а не общий тип **OpenAI-Compatible**, направленный на OpenAI-совместимый endpoint Gemini.
+  Yahont добавляет принудительный суффикс `/v1` к базовому URL провайдера OpenAI-Compatible,
+  и это ломает такой endpoint. Принудительный суффикс `/v1` не применяется к названию провайдера `gemini`,
+  поэтому он не затрагивается.
+</Warning>
